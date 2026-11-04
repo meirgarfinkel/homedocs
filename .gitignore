@@ -1,0 +1,13 @@
+build/
+*.AppImage
+*.deb
+HomeDocsSetup.exe
+__pycache__/
+*.py[cod]
+.venv/
+.ruff_cache/
+.pytest_cache/
+.coverage
+dist/
+*.egg-info/
+*.AppImage.new
