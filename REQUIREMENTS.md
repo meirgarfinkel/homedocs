@@ -77,16 +77,22 @@ Agreed 2026-11-04. **v1** = first release, **v2** = next release, **Later** = no
 | Follow-up questions that use the earlier answer (chat) | v2 |
 | An optional larger model for machines with 16 GB or more | Later |
 
-## 5. Learning and evals
+## 5. Accuracy and evals
+
+HomeDocs has to be accurate for someone who never gives it feedback. So the chat model stays Qwen3-1.7B, and
+every other step is tuned for it, against a test set much harder than the 20 questions it was chosen with.
 
 | Requirement | Priority |
 |---|---|
-| Thumbs up/down under each answer, and source clicks, are recorded | v1 |
-| Feedback becomes per-passage boosts and penalties, applied after reranking with a cap so they can't take over | v1 |
-| Every thumbs-up becomes an eval case (question → the passage that answered it) | v1 |
-| A hand-made seed eval set over a sample corpus checked into `tests/` | v1 |
-| An eval runner reports recall@5 and MRR for vector-only, keyword-only, hybrid, and hybrid + reranker; the numbers go in the README | v1 |
-| Forget all feedback (one menu item, with a confirmation) | v1 |
+| An eval set of about 100 questions over two kinds of documents: real public-domain US government publications (long, many pages, tables, look-alike numbers) and household documents written for it (a lease, insurance policies, manuals, a health plan) as multi-page PDFs with tables and fine print | v1 |
+| Each question tagged with its type: one fact; a fact in a table; an answer spread over two passages of one document; one that needs two documents; one that crosses a page break; reworded with no words in common; a small calculation; not in the files with a look-alike nearby | v1 |
+| Each question lists every passage it needs (by file and a short quote, never a passage id, so it holds when passage size changes) and the facts a right answer states | v1 |
+| The set is split once: about 70% for tuning and 30% held back. Settings are tuned on the first part only; the held-back part is run at the end, and its numbers are the ones reported | v1 |
+| The eval scores each step of the pipeline separately: whether the needed text stayed in one passage (splitting), is among search's candidates, is among the passages the model reads, and whether the answer is right. Each failed question is blamed on the first step that lost it | v1 |
+| It also reports: "Not in your files" when it should be and only then, the share of sentences with a source, sentences sourced from the wrong file, and time to the first word | v1 |
+| The four steps are tuned one setting at a time, the step losing the most questions first; a change is kept only if the tuning score improves and the first word still comes within 5 s | v1 |
+| The held-back numbers, per question type and per step, go in the README, with what it gets wrong | v1 |
+| Thumbs up/down under answers, nudging passages for questions close in meaning to the one voted on (capped), and "Forget all feedback" | Later |
 | Fine-tune the reranker on collected feedback, on CPU, kept only if the eval score improves | Later |
 | The chat model is never retrained | — |
 
