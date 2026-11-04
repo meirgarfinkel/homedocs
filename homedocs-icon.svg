@@ -1,9 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="512" height="512">
   <!-- HomeDocs: a roof with a chimney over a page. The app draws the same (theme.brand_mark), and
        packaging/make_icons.py makes homedocs-icon.png, .ico and .icns from that. -->
-  <circle cx="32" cy="32" r="32" fill="#E3E8EE"/>
-  <rect x="40" y="16.5" width="4" height="7.5" rx="0.8" fill="#13212C"/>
-  <path d="M12 30.9L32 15.3L52 30.9" fill="none" stroke="#13212C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M23 30H35L41 36V45.5Q41 47 39.5 47H24.5Q23 47 23 45.5Z" fill="none" stroke="#C98B2B" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M27.5 36.5H34.5M27.5 41.5H33.5" fill="none" stroke="#C98B2B" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="32" cy="32" r="32" fill="#536E83"/>
+  <g transform="translate(32 32) scale(1.04) translate(-32 -29.8)">
+    <rect x="40" y="16.5" width="4" height="7.5" rx="0.8" fill="#ECEFF2"/>
+    <path d="M12 30.9L32 15.3L52 30.9" fill="none" stroke="#ECEFF2" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="23" y="29" width="18" height="16.5" rx="1.5" fill="none" stroke="#DDCBB2" stroke-width="3.2"/>
+    <path d="M27.5 35H33.25M27.5 40H36.5" fill="none" stroke="#DDCBB2" stroke-width="2.6" stroke-linecap="round"/>
+  </g>
 </svg>

@@ -567,17 +567,21 @@ def icon(name: str, colour: str = "text") -> QIcon:
 
 
 def brand_mark(px: int = 28, dpr: float = 2.0) -> QPixmap:
-    """The app icon (homedocs-icon.svg): a dark roof with a chimney over an amber page, on a light grey circle.
-    Drawn on a 64-unit grid, the same as the SVG."""
+    """The app icon (homedocs-icon.svg): a light roof with a chimney over a page with two lines of text, on a
+    slate blue circle. Drawn on a 64-unit grid, the same as the SVG."""
     pm = QPixmap(round(px * dpr), round(px * dpr))
     pm.fill(Qt.GlobalColor.transparent)
     p = QPainter(pm)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
     p.scale(dpr * px / 64, dpr * px / 64)
-    roof_colour, page_colour = QColor("#13212C"), QColor("#C98B2B")
+    roof_colour, page_colour = QColor("#ECEFF2"), QColor("#DDCBB2")
     p.setPen(Qt.PenStyle.NoPen)
-    p.setBrush(QColor("#E3E8EE"))
+    p.setBrush(QColor("#536E83"))
     p.drawEllipse(QRectF(0, 0, 64, 64))
+    # the house, a little larger, centred in the circle (its middle, y 29.8, to the circle's)
+    p.translate(32, 32)
+    p.scale(1.04, 1.04)
+    p.translate(-32, -29.8)
     p.setBrush(roof_colour)
     p.drawRoundedRect(QRectF(40, 16.5, 4, 7.5), 0.8, 0.8)  # chimney
 
@@ -594,18 +598,10 @@ def brand_mark(px: int = 28, dpr: float = 2.0) -> QPixmap:
     roof.lineTo(52, 30.9)
     p.drawPath(roof)
     p.setPen(pen(page_colour, 3.2))
-    page = QPainterPath(QPointF(23, 30))  # (its top right corner cut off)
-    page.lineTo(35, 30)
-    page.lineTo(41, 36)
-    page.lineTo(41, 45.5)
-    page.quadTo(41, 47, 39.5, 47)
-    page.lineTo(24.5, 47)
-    page.quadTo(23, 47, 23, 45.5)
-    page.closeSubpath()
-    p.drawPath(page)
+    p.drawRoundedRect(QRectF(23, 29, 18, 16.5), 1.5, 1.5)  # the page
     p.setPen(pen(page_colour, 2.6))
-    p.drawLine(QPointF(27.5, 36.5), QPointF(34.5, 36.5))  # lines of text
-    p.drawLine(QPointF(27.5, 41.5), QPointF(33.5, 41.5))
+    p.drawLine(QPointF(27.5, 35), QPointF(33.25, 35))  # lines of text, the top one shorter
+    p.drawLine(QPointF(27.5, 40), QPointF(36.5, 40))
     p.end()
     pm.setDevicePixelRatio(dpr)
     return pm
