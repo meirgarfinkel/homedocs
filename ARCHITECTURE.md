@@ -17,7 +17,7 @@ homedocs/
 ```
 
 `core` can be used and tested without a window, and most tests do. `ui` only decides what to show and when;
-the rules (what a passage is, how results are ranked, whether a quote counts as verified) all live in `core`.
+the rules (what a passage is, how results are ranked, whether a sentence counts as supported) all live in `core`.
 
 | core file | What it does |
 |---|---|
@@ -31,7 +31,8 @@ the rules (what a passage is, how results are ranked, whether a quote counts as 
 | `library.py` | the folders being searched (add, remove) and the file list the Library page shows |
 | `store.py` | saving and removing passages with their keyword index rows; the passage queries; the vector matrix |
 | `search.py` | keyword + vector search, fusion, reranking, feedback boosts |
-| `answer.py` | builds the prompt, streams the answer, reads its citations and checks each quote |
+| `answer.py` | decides whether to ask the model, builds the prompt, streams the answer, finds each sentence's source |
+| `llm.py` | our bindings to llama.cpp (`ctypes`): load a model, read a prompt, stream tokens, stop |
 | `feedback.py` | records thumbs and clicks, works out boosts, turns thumbs-up into eval cases |
 | `models.py` | downloads models (resumable, sha256-checked) and loads them |
 | `evals.py` | runs the eval set and reports recall@k and MRR |
@@ -68,7 +69,8 @@ on Windows, `~/Library/Application Support/homedocs` on Mac, or `$HOMEDOCS_HOME`
   added with.
 - `vectors` (milestone 2): each passage's embedding as a float32 blob, plus which model made it (so changing models
   re-embeds instead of mixing vectors)
-- `questions` (milestone 3): each question asked, when, the answer text, and which passages it cited
+- `questions` (milestone 3): each question asked, when, the answer text, and each sentence's source (passage
+  and where in it), so a recent question reopens without asking the model again
 - `feedback` (milestone 5): question, passage, kind (`up`, `down`, `click`) and when
 
 A schema change bumps `VERSION` and adds an upgrade step to `UPGRADES`. Every upgrade backs the database up
@@ -91,11 +93,12 @@ library for one small feature: then a focused one is found, or it's written here
 | PySide6-Essentials | the window |
 | numpy | the vector matrix and model inputs (2.4: the last for Python 3.11) |
 | onnxruntime | runs the embedder and reranker (its helpers protobuf, flatbuffers and packaging install with it but aren't imported, so they're not in the app) |
-| llama-cpp-python | runs the chat model |
+| llama.cpp (compiled, not from pip) | runs the chat model. Built from a pinned release together with `native/hd_llama.c`, our small C file that wraps the calls taking llama.cpp's settings structs (whose layout changes between versions) in plain functions, so `llm.py` never has to copy a struct |
 | pypdfium2 | reads PDF text and pages (no dependencies of its own) |
 
-Done with the standard library instead: .docx (`zipfile` + `xml.etree`, not python-docx and lxml), quote
-matching (`difflib`, not rapidfuzz), tokenizing (`tokenizer.py`, not `tokenizers`, which pulls in
+Done with the standard library instead: .docx (`zipfile` + `xml.etree`, not python-docx and lxml), the
+llama.cpp bindings (`ctypes`, not llama-cpp-python, which brings jinja2 and diskcache and must be compiled
+anyway), tokenizing (`tokenizer.py`, not `tokenizers`, which pulls in
 huggingface-hub and an HTTP stack), downloads (`urllib`), keyword search (SQLite's FTS5, built into Python's
 `sqlite3`).
 
@@ -105,7 +108,7 @@ huggingface-hub and an HTTP stack), downloads (`urllib`), keyword search (SQLite
 |---|---|---|
 | Embeddings | ONNX Runtime + `tokenizer.py` | `indexer.py` (passages, in batches), `search.py` (the question) |
 | Reranker | ONNX Runtime + `tokenizer.py` | `search.py` |
-| Chat | llama.cpp through llama-cpp-python, GGUF 4-bit | `answer.py` |
+| Chat | llama.cpp through `llm.py`, GGUF 4-bit | `answer.py` |
 
 `models.py` has one entry per model: its files, each with a URL pinned to an exact Hugging Face revision,
 sha256, size, and the licence. Both search models use the same vocabulary, so one tokenizer serves both;
@@ -204,27 +207,35 @@ with "Open file" and "Show in folder".
 
 ### Asking: the answer
 
-`core/answer.py`:
+`core/answer.py`, after the search above:
 
-1. **Prompt:** the passages are numbered `[1]`…`[5]` with their file name and page. The instructions say to
-   answer only from them, to cite each claim with its number, to quote the exact words that support it, and to
-   reply with a fixed "not in your files" line when they don't hold the answer.
-2. **Stream:** tokens come from llama.cpp one at a time. `ui/workers.py` has a streaming job for this: it
-   sends each batch of tokens to the UI thread through the same signal relay, and it checks a cancel flag
-   between tokens, so a new question stops the old answer at once.
-3. **Read citations:** once finished, the answer is parsed for `[n]` markers and the quotes next to them.
-   Citations to numbers that weren't given are dropped and flagged.
-4. **Check quotes:** each quote is compared with its passage: first exact, after normalizing whitespace, curly
-   quotes, dashes and case; failing that, the best close match over windows of the passage (`difflib`), above
-   `QUOTE_MATCH_MIN`. A match stores where in the passage the quote is (for highlighting); no match marks it
-   unverified.
-5. **Save:** the question, answer and cited passages go into `questions`.
+1. **Ask the model at all?** If nothing was found, or the best passage's re-ranker score is below
+   `NOT_FOUND_SCORE` (−7), the answer is "Not in your files." at once. Above that, scores of answerable and
+   unanswerable questions overlap, so the model decides (see REQUIREMENTS.md, how the chat model was chosen).
+2. **Prompt:** the best `ANSWER_PASSAGES` (3) passages, numbered, each with its file name and page or
+   headings. The instructions: answer in one to three short sentences, only from the passages, and if they
+   don't hold the answer reply exactly "Not in your files." The model isn't asked to cite: small models do it
+   badly. The prompt is written out in Qwen's chat format, with thinking turned off.
+3. **Stream:** `llm.py` reads the prompt and yields tokens one at a time. The instructions are the same for
+   every question, so they're read once when the model loads and kept; each question only reads its passages.
+   `ui/workers.py` has a streaming job for this: it sends each batch of tokens to the UI thread through the
+   same signal relay and checks a cancel flag between tokens (and between batches while reading the prompt),
+   so a new question stops the old answer at once.
+4. **Find sources:** once finished, the answer is split into sentences (a line wrapped by hand isn't a sentence
+   end). For each, every sentence of the three passages is scored two ways: the share of its words (stemmed,
+   common words and the question's own words left out, so what it adds, like "45 minutes", is what's checked)
+   found there, and how close they are in meaning (the embedder, already loaded). A sentence with nothing to
+   check ("Yes.") is left alone. The best match above `SUPPORT_WORDS` or
+   `SUPPORT_MEANING` becomes that sentence's link `[n]`, with where it is in the passage for highlighting; no
+   match marks the sentence "not found in your files". Known gap: a real fact attached to the wrong thing can
+   pass (the car's $500 deductible given for the house matched the car policy's sentence); the evals track it.
+5. **Save:** the question, answer and each sentence's source go into `questions`.
 
-### Citations and the Info panel
+### Sources and the Info panel
 
-Clicking `[n]` shows the passage in the Info panel (the right dock, from HomePix), with the matched quote
-highlighted, the file name and page, and "Open file" (`QDesktopServices.openUrl`). The click is recorded as
-feedback.
+Clicking `[n]` shows the passage in the Info panel (the right dock, from HomePix), with the supporting
+sentence highlighted, the file name and page, and "Open file" (`QDesktopServices.openUrl`). The click is
+recorded as feedback.
 
 ### Feedback
 
@@ -255,7 +266,8 @@ time; SQLite's WAL mode lets search read while indexing writes.
 
 Roughly: Python and Qt ~250 MB, chat model ~1.1 GB with its context, embedder and reranker ~200 MB, vectors
 and the database cache ~100 MB. Around 2 GB with everything loaded. The context window is kept small
-(`N_CTX` in `config.py`) because five passages and an answer fit in 4k tokens.
+(`N_CTX` in `config.py`, 3,072 tokens) because three passages and an answer fit in it. Measured with Qwen3-1.7B: 2.4 GB
+for a test script holding the chat model and Python (no window).
 
 ## The tests
 
@@ -266,17 +278,20 @@ of generated sample files), `app` and `open_window` for the window, and `wait_un
 The fakes, like HomePix's `FakeClip`, keep tests fast and offline; CI never downloads a model:
 - `FakeEmbedder`: a hashing embedder (words hashed into a fixed-size vector), so similar text gets similar vectors
 - `FakeReranker`: scores by word overlap
-- `FakeLLM`: streams a fixed answer citing `[1]` with a quote taken from passage 1
+- `FakeLLM`: streams an answer made of passage 1's first sentence, so its source is found
 
-`test_self_test.py` runs the app's own `--self-test`. `test_migrations.py` upgrades old schemas. `test_quotes.py`
-covers quote checking (exact, normalized, fuzzy, made up).
+`test_self_test.py` runs the app's own `--self-test`. `test_migrations.py` upgrades old schemas. `test_sources.py`
+covers finding sources (same words, reworded, made up, from the wrong passage). `test_llm.py` runs the
+bindings against a tiny model when llama.cpp is built, and is skipped otherwise.
 
 ## Packaging (what differs from HomePix)
 
-- **llama.cpp is the main risk.** llama-cpp-python is built from source inside the AlmaLinux 9 container (so it
-  passes the glibc 2.34 check), with runtime CPU feature detection (`GGML_NATIVE=OFF`, `GGML_CPU_ALL_VARIANTS`,
-  backends loaded dynamically) so the same bundle runs on CPUs with and without AVX2. Windows and Mac build it
-  the same way in their CI jobs.
+- **llama.cpp is the main risk.** It's built from a pinned release by `packaging/build_llama.sh` (and a `.bat`
+  for Windows) together with `native/hd_llama.c`: inside the AlmaLinux 9 container for Linux (so it passes the
+  glibc 2.34 check), with runtime CPU feature detection (`GGML_NATIVE=OFF`, `GGML_CPU_ALL_VARIANTS`, backends
+  loaded dynamically) so the same bundle runs on CPUs with and without AVX2. Windows and Mac build it the same
+  way in their CI jobs. The libraries go next to the app; `llm.py` finds them there (or in `build/llama` when
+  running from source).
 - **`--self-test`** loads a tiny GGUF model and generates a few tokens, loads both ONNX models and embeds and
   reranks one sentence, then opens the window and grabs it. The tiny test models are cached in `build.yml`
   (keyed on their sha256) so builds don't download them every time; the real models are never bundled.
@@ -287,12 +302,13 @@ covers quote checking (exact, normalized, fuzzy, made up).
 
 | To change... | Look in |
 |---|---|
-| passage size, overlap, candidate counts, boost cap, quote strictness | `core/config.py` |
+| passage size, overlap, candidate counts, boost cap, how many passages the model reads, when a sentence counts as supported | `core/config.py` |
 | which file types are read, or how | `core/parsers.py` |
 | how files are found, skipped or split | `core/indexer.py` |
 | what's stored | `core/db.py` (`TABLES`, then an upgrade step) |
 | how results are ranked | `core/search.py` |
-| the prompt, or how quotes are checked | `core/answer.py` |
+| the prompt, or how sources are found | `core/answer.py` |
+| the llama.cpp calls | `core/llm.py`, `native/hd_llama.c` |
 | which models are used, their URLs and hashes | `core/models.py` |
 | how feedback changes ranking | `core/feedback.py` |
 | the eval set or the metrics | `tests/evals/`, `core/evals.py` |

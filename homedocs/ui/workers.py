@@ -8,6 +8,7 @@ from PySide6.QtCore import QObject, Signal
 
 class _Relay(QObject):
     done = Signal(object, object, object)  # callback, result, error
+    part = Signal(object, object)  # callback, a piece of a streamed result
 
 
 _relay = None
@@ -17,13 +18,19 @@ _vital = 0  # of those, the ones quitting must wait for
 _idle = threading.Condition()
 
 
-def _job(fn, callback, args):
-    """The work, then its result to the UI thread. Made there: the relay delivers on its thread."""
+def _get_relay() -> _Relay:
+    """Made on the UI thread (the first job is always started there): it delivers on its own thread."""
     global _relay
     if _relay is None:
         _relay = _Relay()
         _relay.done.connect(lambda cb, res, err: cb(res, err))
-    relay = _relay
+        _relay.part.connect(lambda cb, value: cb(value))
+    return _relay
+
+
+def _job(fn, callback, args):
+    """The work, then its result to the UI thread."""
+    relay = _get_relay()
 
     def job():
         try:
@@ -72,6 +79,17 @@ def run_apart(fn, callback, *args):
     """Like run, on a thread of its own that doesn't hold up the shared ones or quitting
     (for long downloads)."""
     threading.Thread(target=_job(fn, callback, args), daemon=True).start()
+
+
+def run_streaming(fn, on_part, callback, *args):
+    """fn(emit, *args) on a thread of its own (like run_apart); each emit(value) reaches on_part(value) on the UI
+    thread as it happens, then callback(result, error) when fn returns. (For answers, written a word at a time.)"""
+    relay = _get_relay()
+
+    def emit(value):
+        relay.part.emit(on_part, value)
+
+    threading.Thread(target=_job(lambda *a: fn(emit, *a), callback, args), daemon=True).start()
 
 
 class Latest:

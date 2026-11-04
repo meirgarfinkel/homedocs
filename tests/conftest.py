@@ -19,13 +19,15 @@ os.environ["XDG_DATA_HOME"] = os.path.join(_SAFE, "share")
 def fake_models(monkeypatch):
     """Every test gets the fake models instead of downloading the real ones (tests of downloading
     itself serve their files from disk)."""
-    from fakes import FakeEmbedder, FakeReranker
+    from fakes import FakeEmbedder, FakeLLM, FakeReranker
 
-    from homedocs.core import models
+    from homedocs.core import llm, models
     from homedocs.ui import models_ui
 
     monkeypatch.setattr(models.Model, "ready", lambda self: True)
     monkeypatch.setattr(models_ui.ModelLoader, "_load", staticmethod(lambda: (FakeEmbedder(), FakeReranker())))
+    monkeypatch.setattr(models, "load_chat", lambda model=None: FakeLLM())
+    monkeypatch.setattr(llm, "available", lambda: True)  # (answers on, with the fake, whether or not it's built)
 
 
 @pytest.fixture

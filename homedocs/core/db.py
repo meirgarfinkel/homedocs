@@ -13,7 +13,7 @@ import sqlite3
 
 from .config import data_dir, db_file
 
-VERSION = 3
+VERSION = 4
 
 # The whole schema, with a comment on every column. (Only SQL that SQLite 3.34 knows: the Linux build's.)
 TABLES: dict[str, str] = {
@@ -62,11 +62,24 @@ TABLES: dict[str, str] = {
                                             -- made again, never mixed
             vec BLOB NOT NULL               -- float32 numbers, unit length
         )""",
+    "questions": """
+        CREATE TABLE questions (
+            id INTEGER PRIMARY KEY,
+            asked REAL NOT NULL,            -- when (Unix time)
+            question TEXT NOT NULL,
+            answer TEXT NOT NULL,           -- the model's answer, or "Not in your files."
+            passages TEXT NOT NULL,         -- the passages shown, best first: a JSON list of chunk ids
+            sources TEXT NOT NULL           -- each sentence of the answer and what backs it: a JSON list of
+                                            -- [start, end, chunk id or null, start, end, checked]: the
+                                            -- sentence in the answer, the passage backing it and where in
+                                            -- that passage, and 0 if it had nothing to check (like "Yes.")
+        )""",
 }
 
 INDEXES: list[str] = [
     "CREATE INDEX IF NOT EXISTS chunks_file ON chunks(file_id, seq)",
     "CREATE INDEX IF NOT EXISTS files_status ON files(status)",
+    "CREATE INDEX IF NOT EXISTS questions_asked ON questions(asked)",
 ]
 
 
@@ -89,10 +102,15 @@ def _to_3(db):
     db.execute(TABLES["vectors"])
 
 
+def _to_4(db):
+    """Questions asked and their answers."""
+    db.execute(TABLES["questions"])
+
+
 # As version 2 had them. (If one of these tables changes, its old CREATE goes here, written out.)
 V2_TABLES = {name: TABLES[name] for name in ("files", "chunks", "chunk_search", "chunks_fts")}
 
-UPGRADES = {1: _to_2, 2: _to_3}  # version: the step that brings it up to the next one
+UPGRADES = {1: _to_2, 2: _to_3, 3: _to_4}  # version: the step that brings it up to the next one
 
 
 def migrate(db: sqlite3.Connection, path):
