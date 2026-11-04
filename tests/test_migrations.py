@@ -1,6 +1,6 @@
 """Database upgrades: a new database gets the schema, an older one is backed up and brought up to date
-in one transaction, and one from a newer HomeDocs is refused without being touched. The schema is
-still empty, so these try the machinery on a made-up table."""
+in one transaction, and one from a newer HomeDocs is refused without being touched. Most try the
+machinery on a made-up table; the last ones, the real schema."""
 
 import sqlite3
 
@@ -20,6 +20,7 @@ def two_versions(monkeypatch):
     monkeypatch.setattr(
         dbmod, "TABLES", {"notes": "CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT, pinned INTEGER)"}
     )
+    monkeypatch.setattr(dbmod, "INDEXES", [])
     monkeypatch.setattr(dbmod, "UPGRADES", {1: to_2})
     monkeypatch.setattr(dbmod, "_ready_dbs", set())
 
@@ -82,3 +83,16 @@ def test_the_real_schema_opens(hd):
     db = hd.open_db()
     assert db.execute("PRAGMA user_version").fetchone()[0] == dbmod.VERSION
     db.close()
+
+
+def test_a_database_from_0_1_0_gets_the_indexing_tables(hd, monkeypatch):
+    monkeypatch.setattr(dbmod, "_ready_dbs", set())
+    with sqlite3.connect(dbmod.db_file()) as raw:  # what 0.1.0 made: no tables, version 1
+        raw.execute("PRAGMA user_version = 1")
+    raw.close()
+    db = hd.open_db()
+    assert db.execute("PRAGMA user_version").fetchone()[0] == dbmod.VERSION
+    assert "char_start" in dbmod.columns(db, "chunks") and "offline" in dbmod.columns(db, "files")
+    db.execute("SELECT * FROM chunks_fts WHERE chunks_fts MATCH 'x'").fetchall()
+    db.close()
+    assert not (hd.data_dir() / "backups").exists()  # (nothing in it to back up)

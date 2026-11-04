@@ -43,7 +43,8 @@ Agreed 2026-11-04. **v1** = first release, **v2** = next release, **Later** = no
 | Requirement | Priority |
 |---|---|
 | Runs in the background on its own; the window stays usable and search works on what's indexed so far | v1 |
-| Text is split into passages of about 400 tokens with overlap; each keeps its file, page and position | v1 |
+| Text is split into passages of about 300 words (about 400 tokens) with overlap; each keeps its file, pages, headings and position | v1 |
+| The file name and headings are searched along with each passage, so a passage is found by what its document is about | v1 |
 | Unchanged files are skipped (size and modified time, then a content hash) | v1 |
 | New, changed and removed files are picked up on start and when the window comes back into focus | v1 |
 | Progress saved as it goes; closing mid-index and reopening carries on from there | v1 |

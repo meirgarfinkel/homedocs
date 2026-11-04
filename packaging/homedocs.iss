@@ -2,7 +2,7 @@
 ; Installs for the current user only, so no administrator password is needed.
 
 #define AppName "HomeDocs"
-#define AppVersion "0.1.0"
+#define AppVersion "0.2.0"
 
 [Setup]
 AppId={{C657A569-32A9-40AC-B9DE-36E5A29CAB64}

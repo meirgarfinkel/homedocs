@@ -6,7 +6,18 @@ from conftest import open_window
 from homedocs.ui.views.sidebar import ASK, LIBRARY
 
 
-def test_the_sidebar_switches_pages(hd, app):
+def test_the_first_time_it_opens_on_the_library_to_choose_folders(hd, app, tmp_path):
+    w = open_window(app)
+    try:
+        assert w.stack.currentWidget() is w.library_page and w.library_page.stack.currentIndex() == 0
+    finally:
+        w.close()
+
+
+def test_the_sidebar_switches_pages(hd, app, tmp_path):
+    from homedocs.core import library
+
+    library.add_folder(tmp_path)
     w = open_window(app)
     try:
         assert w.stack.currentWidget() is w.ask_page and w.page_title.text() == "Ask"

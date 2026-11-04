@@ -24,10 +24,12 @@ the rules (what a passage is, how results are ranked, whether a quote counts as 
 | `config.py` | tunable constants (passage size, overlap, candidate counts, boost cap, fuzzy threshold) and `data_dir()` |
 | `settings.py` | `settings.json`: folders, theme, chosen models |
 | `db.py` | the schema (`TABLES`), versioned upgrades, backups |
-| `parsers.py` | one function per file type: returns the text and where each page starts |
+| `parsers.py` | one function per file type: returns the text, where each page starts, and the headings |
+| `passages.py` | splits a file's text into passages (counted in words), each with its page, headings and position |
 | `tokenizer.py` | the BERT WordPiece tokenizer both ONNX models use, in plain Python (reads the model's `vocab.txt`) |
-| `indexer.py` | finds new, changed and removed files, splits text into passages, saves them, embeds them |
-| `store.py` | the passage queries and the in-memory vector matrix |
+| `indexer.py` | finds new, changed, moved and removed files, reads and saves them; runs passes in the background |
+| `library.py` | the folders being searched (add, remove) and the file list the Library page shows |
+| `store.py` | saving and removing passages with their keyword index rows; the passage queries; the vector matrix |
 | `search.py` | keyword + vector search, fusion, reranking, feedback boosts |
 | `answer.py` | builds the prompt, streams the answer, reads its citations and checks each quote |
 | `feedback.py` | records thumbs and clicks, works out boosts, turns thumbs-up into eval cases |
@@ -55,18 +57,23 @@ on Windows, `~/Library/Application Support/homedocs` on Mac, or `$HOMEDOCS_HOME`
 
 `core/db.py` holds the whole schema in one place (`TABLES`), with a comment on every column:
 
-- `files`: one row per file found: its path, folder, size, modified time, content hash, status (`pending`,
-  `indexed`, `failed`, `offline`) and the error if it failed
-- `chunks`: one row per passage: its file, page, start and end position in the file's text, and the text
-- `chunks_fts`: an FTS5 table over the passage text (external content on `chunks`, kept in step by triggers)
-- `vectors`: each passage's embedding as a float32 blob, plus which model made it (so changing models
+- `files`: one row per file found: its path, name, size, modified time, content hash, status (`pending`,
+  `indexed`, `failed`, `skipped`), the error if it failed or was skipped, and whether its folder is offline
+  (a flag beside the status, so a file that comes back online is just as it was)
+- `chunks`: one row per passage: its file, its place in the file, the pages it starts and ends on (PDFs), the
+  headings it's under, its start and end position in the file's text, and the text
+- `chunks_fts`: an FTS5 index (Porter stemming, accents ignored) over each passage's text, headings and file
+  name, through the `chunk_search` view, so it keeps no copy of the text. `store.py` adds and removes its rows
+  in the same transaction as the passages, never with triggers: removing a row needs exactly the text it was
+  added with.
+- `vectors` (milestone 2): each passage's embedding as a float32 blob, plus which model made it (so changing models
   re-embeds instead of mixing vectors)
-- `questions`: each question asked, when, the answer text, and which passages it cited
-- `feedback`: question, passage, kind (`up`, `down`, `click`) and when
+- `questions` (milestone 3): each question asked, when, the answer text, and which passages it cited
+- `feedback` (milestone 5): question, passage, kind (`up`, `down`, `click`) and when
 
 A schema change bumps `VERSION` and adds an upgrade step to `UPGRADES`. Every upgrade backs the database up
 first and runs in one transaction, so a failed one leaves it untouched. A database from a newer version is
-refused.
+refused. Only SQL that SQLite 3.34 understands is used: that's the version in the Linux build.
 
 **Vectors live in numpy at run time, not in a SQLite extension.** `store.py` loads every vector into one
 normalized `float32` matrix at start (a few tens of thousands of rows × 384 is tens of MB) and appends to it as
@@ -109,7 +116,8 @@ fakes.
 
 ### First run
 
-1. No folders in `settings.json`: the window opens on a welcome page. The user picks a folder.
+1. No folders in `settings.json`: the window opens on the Library page, which shows one "Choose a folder"
+   button.
 2. `models.py` downloads the three models (with `urllib`) on their own thread (`workers.run_apart`), each to a `.part` file
    that resumes if interrupted, then checks its sha256 and renames it into place. A bad hash deletes it and
    tries again.
@@ -120,23 +128,42 @@ fakes.
 `core/indexer.py` runs one pass at a time on a background thread (a lock file stops two copies of the app
 indexing together). For each folder in the settings:
 
-1. **Scan:** walks the folder, skipping hidden entries and unsupported or oversized files, and compares what it
-   finds with `files`. A folder that can't be reached marks its files `offline` and keeps them; it never
-   deletes them. Files gone from a folder that *is* reachable are removed, with their passages.
-2. **Skip what hasn't changed:** same size and modified time means skip. If those changed, the content hash
-   decides; a touched-but-identical file is just updated.
-3. **Read:** `parsers.py` turns the file into plain text plus the position where each page starts (PDF via
-   pypdfium2; Word by reading the paragraphs out of the .docx's XML with `zipfile` and `xml.etree`; Markdown
-   and text read directly). A failure stores the reason and the file
-   is marked `failed`, not retried until it changes.
-4. **Split:** the text becomes passages of about 400 tokens with overlap, breaking at paragraph and sentence
-   edges where it can. Each passage keeps its page and its start and end position in the file's text.
-5. **Save:** one transaction per file replaces its old passages, keyword index rows and vectors, then marks it
-   `indexed`. Embedding happens in batches before the transaction, so a crash at any point leaves the file
-   either fully old or fully new; on the next start, anything not `indexed` is simply done again.
+0. Files from folders no longer in the settings are removed (removing a folder in the Library starts a pass).
+1. **Scan:** walks the folder, skipping hidden files and folders (dot names, and Windows' hidden flag), Word's
+   `~$` lock files, links to folders, and kinds of file it doesn't read, and compares what it finds with
+   `files`. A folder that can't be reached, or that has emptied completely while files were known in it (an
+   unplugged drive's mount point looks like that), marks its files offline and keeps them. Files over 100 MB
+   are listed as `skipped`.
+2. **Skip what hasn't changed:** same size and modified time means skip. If those changed, the file becomes
+   `pending`, and when its turn comes the content hash decides: a touched-but-identical file goes back to what
+   it was (indexed, or failed) without being read.
+3. **Moves:** a pending file whose hash matches a file that vanished in this pass is that file, moved or
+   renamed: it takes over its row and passages (and is re-indexed under its new name for keyword search), so a
+   reorganized folder isn't read, or embedded, again.
+4. **Read:** pending files, newest first. `parsers.py` turns the file into plain text plus where each page starts
+   and where each heading is (PDF via pypdfium2, with its bookmarks as headings; Word by reading the paragraphs
+   and tables out of the .docx's XML with `zipfile` and `xml.etree`, headings from their styles; Markdown read as
+   written, `#` and underlined headings found; text decoded as UTF-8, UTF-16 or Windows-1252). A failure stores
+   the reason (a scanned PDF, a password, a damaged file) and the file is marked `failed`, not retried until it
+   changes.
+5. **Split:** `passages.py` cuts the text into passages of about 300 words (roughly 400 tokens), counted in
+   words so changing the model never means splitting again. It breaks between paragraphs, else sentences, else
+   words; the last 50 words or so (whole sentences) start the next passage too. A heading starts a new passage
+   once the current one has some text, and never ends one. Each passage keeps its pages, the headings it's under
+   (like `Coverage > Deductible`) and its start and end position in the file's text.
+6. **Save:** one transaction per file replaces its old passages and keyword index rows, then marks it
+   `indexed`, so a crash at any point leaves the file either fully old or fully new; on the next start, anything
+   still `pending` is simply done again.
+7. **Removed:** files that vanished and weren't found moved are removed with their passages.
 
-In the app, `ui/indexing.py` starts a pass on opening and when the window regains focus, and shows progress in
-the status pill. The Library page reads `files` for its table.
+**Embedding is its own step** (milestone 2): after a pass, every passage without a vector from the current model
+gets one, in batches, the text given to the model being `file name > headings` then the passage, so a passage
+knows what it's about even when its own words don't say. Changing models only redoes this step.
+
+In the app, `ui/indexing.py` starts a pass on opening, when the app comes back into focus (at most once a
+minute), and from the Library page's "Look for changes", and shows progress in the status pill with a Stop
+button. There's no live file watching: it's unreliable on network drives, and costs resources all the time.
+The Library page reads `files` for its table (`library.files()`), on a worker thread.
 
 ### Asking: search
 
