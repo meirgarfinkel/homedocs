@@ -5,10 +5,13 @@
 #   checks for merging into main), so a change that breaks some distro shows up before it's merged.
 # - Windows: the installer, built the same way on Windows; its self-test runs too.
 # - Mac: HomeDocs.dmg, built on an Apple Silicon Mac; its self-test runs too.
-# Pushing a tag like v0.2.0 does all of it and publishes a GitHub Release with every file.
 #
-# A pull request's build saves nothing on GitHub: each job tests what it built itself. Only a tag's
-# build and one started by hand save their files: a tag's for the Release, a hand-started one's to
+# Releasing is automatic: when a merge into main has a version (homedocs/__init__.py) with no Release
+# yet, all of it is built again from main and published as a GitHub Release tagged v<version>. Merges
+# that don't change the version build nothing here (their pull request already did).
+#
+# A pull request's build saves nothing on GitHub: each job tests what it built itself. Only a release's
+# build and one started by hand save their files: a release's for the Release, a hand-started one's to
 # download.
 
 name: Build HomeDocs
@@ -16,7 +19,7 @@ name: Build HomeDocs
 on:
   workflow_dispatch:
   push:
-    tags: ["v*"]
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -25,10 +28,34 @@ permissions:
 
 concurrency:  # a new push to a pull request replaces the build still running for the old one
   group: build-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}  # (a release is never cut short)
 
 jobs:
+  version:
+    # Is this a new version? (Only pushes to main can release.)
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      release: ${{ steps.v.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          version="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' homedocs/__init__.py)"
+          [ -n "$version" ] || { echo "::error::No __version__ in homedocs/__init__.py"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          release=false
+          if [ "$GITHUB_EVENT_NAME" = push ] && ! gh release view "v$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            release=true
+            echo "::notice::Releasing v$version"
+          fi
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   linux:
+    needs: version
+    if: github.event_name != 'push' || needs.version.outputs.release == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -63,6 +90,8 @@ jobs:
           if-no-files-found: error
 
   windows:
+    needs: version
+    if: github.event_name != 'push' || needs.version.outputs.release == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -81,6 +110,8 @@ jobs:
           if-no-files-found: error
 
   mac:
+    needs: version
+    if: github.event_name != 'push' || needs.version.outputs.release == 'true'
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -97,9 +128,9 @@ jobs:
           if-no-files-found: error
 
   release:
-    # Only for version tags: publish every build as a GitHub Release.
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [linux, windows, mac]
+    # A new version: publish every build as a GitHub Release, tagging the commit they were built from.
+    if: needs.version.outputs.release == 'true'
+    needs: [version, linux, windows, mac]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -108,16 +139,17 @@ jobs:
         with:
           path: dist
       - run: >
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --generate-notes
+          gh release create "v${{ needs.version.outputs.version }}" --target "$GITHUB_SHA"
+          --repo "$GITHUB_REPOSITORY" --generate-notes
           dist/HomeDocs-Linux/HomeDocs-x86_64.AppImage dist/HomeDocs-Linux/HomeDocs.deb
           dist/HomeDocs-Windows/HomeDocsSetup.exe dist/HomeDocs-Mac/HomeDocs.dmg
         env:
           GH_TOKEN: ${{ github.token }}
 
   cleanup:
-    # A tag's saved files were only for the Release, which keeps its own copies: delete them.
-    if: always() && github.event_name == 'push'
-    needs: [linux, windows, mac, release]
+    # A release's saved files were only for the Release, which keeps its own copies: delete them.
+    if: always() && needs.version.outputs.release == 'true'
+    needs: [version, linux, windows, mac, release]
     runs-on: ubuntu-latest
     permissions:
       actions: write

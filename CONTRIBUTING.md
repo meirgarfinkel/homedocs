@@ -62,17 +62,12 @@ The logo is drawn in code (`theme.brand_mark`). After changing it, update `homed
 | Workflow | Runs on | Does |
 |---|---|---|
 | `CI` (`.github/workflows/ci.yml`) | every push, every branch | lint (same checks as the pre-push hook) and tests on Linux, Windows and Mac; required for merging into `main` |
-| `Build HomeDocs` (`.github/workflows/build.yml`) | every pull request; version tags; by hand from the Actions tab | builds the AppImage and .deb in AlmaLinux 9 and self-tests them on six distros, the Windows installer and the Mac disk image. A pull request's build saves no files on GitHub; a tag's publishes a GitHub Release with all of them and then deletes its copies; one started by hand keeps them, to download |
+| `Build HomeDocs` (`.github/workflows/build.yml`) | every pull request; a merge into `main` with a new version; by hand from the Actions tab | builds the AppImage and .deb in AlmaLinux 9 and self-tests them on six distros, the Windows installer and the Mac disk image. A pull request's build saves no files on GitHub; a new version's publishes a GitHub Release with all of them and then deletes its copies; one started by hand keeps them, to download |
 
 ## Releasing
 
-Versions follow `MAJOR.MINOR.PATCH`. Bump `__version__` in `homedocs/__init__.py` and `AppVersion` in
-`packaging/homedocs.iss` together, in the pull request that ships the change (the app's update check compares
-them with the newest release). Then, from an up-to-date `main`:
-
-```bash
-git tag v0.2.0
-git push origin v0.2.0
-```
-
-The build workflow publishes the release with the Windows installer, Mac disk image, AppImage and .deb attached.
+Versions follow `MAJOR.MINOR.PATCH`. Bump `__version__` in `homedocs/__init__.py` (the only place it's
+written) in the pull request that ships the change. When it merges, the build workflow sees a version with no
+release yet, builds everything from `main` and publishes the release, tagged `v<version>`, with the Windows
+installer, Mac disk image, AppImage and .deb attached. No one pushes tags by hand. A merge that leaves the
+version alone releases nothing.

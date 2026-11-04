@@ -102,7 +102,8 @@ The app is built for Apple Silicon (M1 or newer) and needs macOS 14 or newer.
   runs each one's self-test.
 - **By hand** (Actions tab > **Build HomeDocs** > **Run workflow**): the same, and the files are kept to
   download under **Artifacts**.
-- **A version tag** such as `v0.2.0` does everything and publishes a GitHub Release with all four files.
+- **A merge into main with a new version** (`__version__` in `homedocs/__init__.py`) does everything and
+  publishes a GitHub Release, tagged `v<version>`, with all four files.
 
 ---
 

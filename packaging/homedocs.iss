@@ -2,7 +2,10 @@
 ; Installs for the current user only, so no administrator password is needed.
 
 #define AppName "HomeDocs"
-#define AppVersion "0.3.0"
+; AppVersion comes from homedocs/__init__.py (build_windows.bat passes it)
+#ifndef AppVersion
+  #error Build with packaging\build_windows.bat, which passes the version
+#endif
 
 [Setup]
 AppId={{C657A569-32A9-40AC-B9DE-36E5A29CAB64}

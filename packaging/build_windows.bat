@@ -47,7 +47,11 @@ if not exist "%ISCC%" (
   echo Install Inno Setup from https://jrsoftware.org/isinfo.php and run this again for the installer.
   exit /b 0
 )
-"%ISCC%" /Q packaging\homedocs.iss || goto fail
+rem the version, from homedocs\__init__.py (the only place it's written)
+for /f "tokens=2 delims==" %%V in ('findstr /b "__version__" homedocs\__init__.py') do set "VER=%%~V"
+set "VER=%VER: =%"
+set "VER=%VER:"=%"
+"%ISCC%" /Q /DAppVersion=%VER% packaging\homedocs.iss || goto fail
 
 echo.
 echo Done: HomeDocsSetup.exe
