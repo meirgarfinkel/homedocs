@@ -567,17 +567,21 @@ def icon(name: str, colour: str = "text") -> QIcon:
 
 
 def brand_mark(px: int = 28, dpr: float = 2.0) -> QPixmap:
-    """The app icon (homedocs-icon.svg): a roof with a chimney over a page, on a dark rounded square.
-    Drawn on a 64-unit grid, the same as the SVG."""
+    """The app icon (homedocs-icon.svg): a light roof with a chimney over a page with two lines of text, on a
+    slate blue circle. Drawn on a 64-unit grid, the same as the SVG."""
     pm = QPixmap(round(px * dpr), round(px * dpr))
     pm.fill(Qt.GlobalColor.transparent)
     p = QPainter(pm)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
     p.scale(dpr * px / 64, dpr * px / 64)
-    roof_colour, page_colour = QColor("#E4E7EA"), QColor("#E9B872")
+    roof_colour, page_colour = QColor("#F5F8FB"), QColor("#F2DFC4")
     p.setPen(Qt.PenStyle.NoPen)
-    p.setBrush(QColor("#13212C"))
-    p.drawRoundedRect(QRectF(0, 0, 64, 64), 15, 15)
+    p.setBrush(QColor("#536E83"))
+    p.drawEllipse(QRectF(0, 0, 64, 64))
+    # the house, a little larger, centred in the circle (its middle, y 29.8, to the circle's)
+    p.translate(32, 32)
+    p.scale(1.04, 1.04)
+    p.translate(-32, -29.8)
     p.setBrush(roof_colour)
     p.drawRoundedRect(QRectF(40, 16.5, 4, 7.5), 0.8, 0.8)  # chimney
 
@@ -594,22 +598,10 @@ def brand_mark(px: int = 28, dpr: float = 2.0) -> QPixmap:
     roof.lineTo(52, 30.9)
     p.drawPath(roof)
     p.setPen(pen(page_colour, 3.2))
-    page = QPainterPath(QPointF(23, 30))
-    page.lineTo(35, 30)
-    page.lineTo(41, 36)
-    page.lineTo(41, 50.5)
-    page.quadTo(41, 52, 39.5, 52)
-    page.lineTo(24.5, 52)
-    page.quadTo(23, 52, 23, 50.5)
-    page.closeSubpath()
-    p.drawPath(page)
-    fold = QPainterPath(QPointF(35, 30))
-    fold.lineTo(35, 36)
-    fold.lineTo(41, 36)
-    p.drawPath(fold)
+    p.drawRoundedRect(QRectF(23, 29, 18, 16.5), 1.5, 1.5)  # the page
     p.setPen(pen(page_colour, 2.6))
-    p.drawLine(QPointF(27.5, 41.5), QPointF(36.5, 41.5))  # lines of text
-    p.drawLine(QPointF(27.5, 46.5), QPointF(33.5, 46.5))
+    p.drawLine(QPointF(27.5, 35), QPointF(33.25, 35))  # lines of text, the top one shorter
+    p.drawLine(QPointF(27.5, 40), QPointF(36.5, 40))
     p.end()
     pm.setDevicePixelRatio(dpr)
     return pm
