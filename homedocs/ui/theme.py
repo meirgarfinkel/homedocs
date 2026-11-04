@@ -263,6 +263,18 @@ QToolButton#pageBack {{ border: none; border-radius: 16px; padding: 4px 12px 4px
 QToolButton#pageBack:hover {{ background: {hover}; color: {text}; }}
 
 QLabel#emptyTitle {{ font-size: 20px; font-weight: 700; }}
+QFrame#note {{ background: {accentSoft}; border-radius: 12px; }}
+QFrame#note QLabel {{ background: transparent; }}
+QScrollArea#results, QWidget#resultList {{ background: {bg}; border: none; }}
+QFrame#result {{ background: {side}; border: 1px solid transparent; border-radius: 12px; }}
+QFrame#result:hover {{ border-color: {border}; }}
+QFrame#result QLabel {{ background: transparent; }}
+QLabel#resultTitle {{ font-weight: 700; }}
+QLabel#resultText {{ color: {text}; line-height: 140%; }}
+QLabel#tag {{ color: {muted}; border: 1px solid {border}; border-radius: 8px; padding: 1px 7px; font-size: 11px; }}
+QLabel#panelTitle {{ font-size: 16px; font-weight: 700; }}
+QLabel#panelPath {{ color: {muted}; font-size: 11px; }}
+QLabel#passageText {{ background: {side}; padding-right: 6px; }}
 QFrame#folderRow {{ background: {side}; border-radius: 10px; }}
 QLabel#folderPath {{ font-weight: 600; background: transparent; }}
 QFrame#folderRow QLabel {{ background: transparent; }}

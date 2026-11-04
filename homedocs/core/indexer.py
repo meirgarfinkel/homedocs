@@ -15,6 +15,9 @@ A pass, for each folder in the settings:
 
 Files from folders no longer in the settings are removed first. Nothing on disk is ever changed.
 
+Then, once the embedding model is downloaded, embed_pass gives every passage without a vector one, a few at a
+time (newest files first), so search by meaning covers it. Vectors made by another model are dropped first.
+
 Only one HomeDocs indexes at a time: a pass first takes a lock file in the data folder, and if another
 copy of the app holds it, this one leaves the indexing to it.
 """
@@ -27,7 +30,7 @@ import threading
 import time
 
 from . import parsers, passages, store
-from .config import FILE_TYPES, MAX_FILE_MB, data_dir
+from .config import EMBED_BATCH, FILE_TYPES, MAX_FILE_MB, data_dir
 from .db import open_db
 from .settings import folders
 from .util import folder_prefix, inside, lower_priority
@@ -169,6 +172,27 @@ def _index_pass(db, roots, should_stop, report) -> dict:
     return info
 
 
+def embed_pass(embedder, should_stop=lambda: False, report=lambda **info: None) -> int:
+    """Give every passage without a vector one. Returns how many were embedded; raises Stopped."""
+    db = open_db()
+    try:
+        store.drop_other_vectors(db, embedder.key)
+        todo, done = store.count_without_vectors(db), 0
+        while True:
+            if should_stop():
+                raise Stopped
+            rows = store.without_vectors(db, EMBED_BATCH * 2)
+            if not rows:
+                return done
+            report(phase="embedding", done=done, todo=todo, file=None)
+            vecs = embedder.embed([store.embed_text(r["name"], r["heading"], r["text"]) for r in rows], EMBED_BATCH)
+            store.save_vectors(db, embedder.key, [r["id"] for r in rows], vecs)
+            done += len(rows)
+            todo = max(todo, done)
+    finally:
+        db.close()
+
+
 def _status(too_big: bool) -> tuple[str, str | None]:
     """A file's status and error when it's found new or changed."""
     if too_big:
@@ -275,12 +299,15 @@ class _IndexLock:
 class Indexer:
     """Runs passes on a background thread.
 
-    snapshot() returns the state as a dict: running, phase ("idle" | "scanning" | "reading" |
+    snapshot() returns the state as a dict: running, phase ("idle" | "scanning" | "reading" | "embedding" |
     "elsewhere"), done, todo, file (being read), error (a message to show, or None), changes (goes up by
-    one after each pass that changed what's indexed: compare it to know when to reload), last_run.
+    one after each pass that changed what's indexed or embedded: compare it to know when to reload), last_run.
+
+    embedder: set it (from any thread) once the embedding model is loaded; passes then embed too.
     """
 
-    def __init__(self):
+    def __init__(self, embedder=None):
+        self.embedder = embedder
         self.lock = threading.Lock()
         self.thread = None
         self.stop_flag = False
@@ -331,9 +358,16 @@ class Indexer:
                 with self.lock:
                     self.again = False
                     self.state.update(running=True, error=None, phase="scanning", done=0, todo=0, file=None)
+                stop = lambda: self.stop_flag or self.again  # noqa: E731
                 try:
-                    info = index_pass(lambda: self.stop_flag or self.again, self._report)
+                    info = index_pass(stop, self._report)
                     changed = any(info[k] for k in ("read", "failed", "moved", "removed", "offline"))
+                    if self.embedder is not None:
+                        if changed:  # (keyword search can show the new files while they're embedded)
+                            with self.lock:
+                                self.state["changes"] += 1
+                            changed = False
+                        changed = bool(embed_pass(self.embedder, stop, self._report))
                 except Stopped:
                     changed = True  # (some files may have been read)
                 except Exception as e:

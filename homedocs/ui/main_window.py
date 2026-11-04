@@ -1,6 +1,8 @@
 """The main window: the toolbar (with the question box), the sidebar, the Ask and Library pages, the info
 panel at the side, and the status pill over the page's corner."""
 
+import time
+
 from PySide6.QtCore import QEvent, QObject, QRect, QRectF, QSettings, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QKeySequence, QPainter, QPainterPath
 from PySide6.QtWidgets import (
@@ -19,14 +21,17 @@ from PySide6.QtWidgets import (
 )
 
 from ..core.config import data_dir
+from ..core.search import Searcher
 from ..core.settings import folders
-from . import theme
+from . import theme, workers
 from .indexing import IndexStatus, IndexWatcher
 from .menu import MenuButton, add_row
+from .models_ui import ModelLoader
 from .status_pill import StatusPill
 from .updates import Updater
+from .views.ask import AskPage
 from .views.library import LibraryPage
-from .views.pages import Placeholder
+from .views.passage_panel import PassagePanel
 from .views.settings_dialog import SettingsDialog
 from .views.sidebar import ASK, LIBRARY, PAGES, Sidebar
 from .views.update_bar import UpdateBar
@@ -159,7 +164,7 @@ class MainWindow(QMainWindow):
         self.settings = QSettings(str(data_dir() / "window.ini"), QSettings.Format.IniFormat)
         self.loaded = False  # everything the window shows at start has been read once
 
-        self.ask_page = Placeholder("Ask a question about your documents in the box above. Answers arrive soon.")
+        self.ask_page = AskPage()
         self.library_page = LibraryPage()
         self.library_page.count.connect(self._show_count)
         self.watcher = IndexWatcher(self)
@@ -190,7 +195,7 @@ class MainWindow(QMainWindow):
 
         self.sidebar = Sidebar()
         self.sidebar_dock = self._dock("Sidebar", "sidebar", self.sidebar, Qt.DockWidgetArea.LeftDockWidgetArea)
-        self.info = self._info_panel()
+        self.info = PassagePanel()
         self.info_dock = self._dock("Info", "info", self.info, Qt.DockWidgetArea.RightDockWidgetArea)
         self.info_dock.hide()  # opens when a source is clicked
 
@@ -202,6 +207,24 @@ class MainWindow(QMainWindow):
         self.status_pill = StatusPill(central, self.statusBar(), self.background)
         self.watcher.state.connect(self.status_pill.refresh)
         self.watcher.changed.connect(self.library_page.reload)
+        self.watcher.changed.connect(self._vectors_changed)
+        self.watcher.state.connect(self._index_state)
+        self.searcher = Searcher()
+        self._asking = workers.Latest()
+        self.models = ModelLoader(self.watcher.indexer, self.searcher, self)
+        self.models.progress.connect(self._model_progress)
+        self.models.ready.connect(self._models_ready)
+        self.models.failed.connect(self._models_failed)
+        self.ask_page.opened.connect(self.open_passage)
+        self.ask_page.choose_folders.connect(lambda: (self.show_page(LIBRARY), self.library_page.add_folder()))
+        self.ask_page.retry.connect(self._retry_models)
+        self.library_page.folders_changed.connect(self._update_note)
+        self._model_problem = None
+        self._reloaded = 0.0
+        self._indexing = False
+        self._reload_timer = QTimer(self)
+        self._reload_timer.setSingleShot(True)
+        self._reload_timer.timeout.connect(self._vectors_changed)
         self.library_page.folders_changed.connect(self.watcher.start)
         self.library_page.rescan.connect(self.watcher.start)
         QApplication.instance().applicationStateChanged.connect(self._app_state)
@@ -223,10 +246,15 @@ class MainWindow(QMainWindow):
             self.restoreState(state)
         self.show_page(ASK if folders() else LIBRARY)  # (the first time: choose folders)
         QTimer.singleShot(0, self._ready)  # once the event loop has run: the window is up
-        QTimer.singleShot(8000, self.updater.check_quietly)  # a newer HomeDocs: get it, then offer a restart
+        self._update_timer = QTimer(self)  # a newer HomeDocs: get it, then offer a restart
+        self._update_timer.setSingleShot(True)
+        self._update_timer.timeout.connect(self.updater.check_quietly)
+        self._update_timer.start(8000)
 
     def _ready(self):
         self.loaded = True
+        self._update_note()
+        self.models.start()  # downloaded the first time, then loaded
         self.watcher.start_if_due()  # look for new and changed files
 
     def _app_state(self, state):
@@ -245,20 +273,6 @@ class MainWindow(QMainWindow):
         dock.setTitleBarWidget(QWidget())  # no title bar: the toolbar's buttons show and hide it
         self.addDockWidget(area, dock)
         return dock
-
-    @staticmethod
-    def _info_panel() -> QWidget:
-        body = QWidget()
-        body.setObjectName("infoBody")
-        body.setMinimumWidth(280)
-        lay = QVBoxLayout(body)
-        lay.setContentsMargins(20, 20, 20, 16)
-        hint = QLabel("Click a source in an answer to read it here.")
-        hint.setObjectName("hint")
-        hint.setWordWrap(True)
-        lay.addWidget(hint)
-        lay.addStretch()
-        return body
 
     def _restyle(self):
         """The icons, after the colours changed."""
@@ -297,6 +311,7 @@ class MainWindow(QMainWindow):
         self.ask_box.setMaximumWidth(620)
         self.ask_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.ask_box.escaped.connect(self.ask_box.clearFocus)
+        self.ask_box.returnPressed.connect(self.ask)
         bar.addWidget(self.ask_box)
         bar.addWidget(_spacer(0, stretch=True))
         find = QAction("Ask", self)
@@ -357,8 +372,95 @@ class MainWindow(QMainWindow):
     def open_settings(self):
         SettingsDialog(self).exec()
 
+    # --- asking ------------------------------------------------------------------------------------
+
+    def ask(self, question: str | None = None):
+        q = (question if question is not None else self.ask_box.text()).strip()
+        if not q:
+            return
+        self.show_page(ASK)
+        self.ask_page.searching(q)
+        self._asking.run(self.searcher.search, lambda found, err: self._answered(q, found, err), q)
+
+    def _answered(self, question, found, err):
+        if err is not None:
+            print(f"search: {err!r}")
+            self.ask_page.show_error(f"Something went wrong while searching: {err}")
+            return
+        self.ask_page.show_found(question, found)
+
+    def open_passage(self, result):
+        self.info.show_result(result)
+        self.info_dock.show()
+
+    VECTOR_RELOAD_GAP = 20  # seconds: while passages are being embedded, search catches up this often
+
+    def _index_state(self, s):
+        if self._indexing and not s["running"]:
+            self._vectors_changed(done=True)  # the pass is over: search sees all of it now
+        self._indexing = s["running"]
+
+    def _vectors_changed(self, done=False):
+        """Indexing changed what's embedded: reload the vectors for search, at most every VECTOR_RELOAD_GAP
+        seconds while it's busy (all of them are read each time), and right away when it's done."""
+        if not self.models.loaded:
+            return
+        if not done and self.watcher.running():
+            if self._reload_timer.isActive():
+                return
+            wait = self.VECTOR_RELOAD_GAP - (time.monotonic() - self._reloaded)
+            if wait > 0:
+                self._reload_timer.start(int(wait * 1000))
+                return
+        self._reload_timer.stop()
+        self._reloaded = time.monotonic()
+        workers.run(self.searcher.refresh, lambda _, err: err and print(f"vectors: {err!r}"))
+
+    # --- the search models -----------------------------------------------------------------------
+
+    def _model_progress(self, done, total):
+        mb = f"{done / 1e6:.0f} of {total / 1e6:.0f} MB"
+        self.statusBar().showMessage(f"Downloading the search models: {mb}")
+        self._model_problem = None
+        self._update_note(downloading=mb)
+
+    def _models_ready(self):
+        self.statusBar().clearMessage()
+        self._model_problem = None
+        self._update_note()
+        self.watcher.start()  # passages get their vectors
+
+    def _models_failed(self, message):
+        self.statusBar().clearMessage()
+        self._model_problem = message
+        self._update_note()
+
+    def _retry_models(self):
+        self._model_problem = None
+        self._update_note(downloading="starting")
+        self.models.start()
+
+    def _update_note(self, downloading: str | None = None):
+        """The Ask page's note: what's missing for searching (folders, the models), or nothing."""
+        if not folders():
+            self.ask_page.show_note("Choose the folders to search first.", "Choose a folder", "folders")
+        elif self._model_problem:
+            self.ask_page.show_note(
+                f"{self._model_problem} Until then, search finds exact words only.", "Try again", "retry"
+            )
+        elif downloading or self.models.busy:
+            self.ask_page.show_note(
+                "Getting search by meaning ready"
+                + (f" (downloading {downloading})" if downloading and downloading != "starting" else "")
+                + ". Until then, search finds exact words only."
+            )
+        else:
+            self.ask_page.show_note("")
+
     def closeEvent(self, e):  # noqa: N802 (Qt's name)
         self.closing.emit()
+        self._update_timer.stop()  # (a closed window never checks)
+        self.models.stop()
         self.watcher.shutdown()
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("state", self.saveState())

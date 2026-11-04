@@ -13,7 +13,7 @@ import sqlite3
 
 from .config import data_dir, db_file
 
-VERSION = 2
+VERSION = 3
 
 # The whole schema, with a comment on every column. (Only SQL that SQLite 3.34 knows: the Linux build's.)
 TABLES: dict[str, str] = {
@@ -55,6 +55,13 @@ TABLES: dict[str, str] = {
             name, heading, text, content='chunk_search', content_rowid='id',
             tokenize='porter unicode61 remove_diacritics 2'
         )""",
+    "vectors": """
+        CREATE TABLE vectors (
+            chunk_id INTEGER PRIMARY KEY REFERENCES chunks(id),
+            model TEXT NOT NULL,            -- the model that made it (models.Model.key): another model's are
+                                            -- made again, never mixed
+            vec BLOB NOT NULL               -- float32 numbers, unit length
+        )""",
 }
 
 INDEXES: list[str] = [
@@ -77,9 +84,15 @@ def _to_2(db):
         db.execute(create)
 
 
-V2_TABLES = dict(TABLES)  # (as version 2 shipped: TABLES changes later, this doesn't)
+def _to_3(db):
+    """Vectors, for searching by meaning."""
+    db.execute(TABLES["vectors"])
 
-UPGRADES = {1: _to_2}  # version: the step that brings it up to the next one
+
+# As version 2 had them. (If one of these tables changes, its old CREATE goes here, written out.)
+V2_TABLES = {name: TABLES[name] for name in ("files", "chunks", "chunk_search", "chunks_fts")}
+
+UPGRADES = {1: _to_2, 2: _to_3}  # version: the step that brings it up to the next one
 
 
 def migrate(db: sqlite3.Connection, path):

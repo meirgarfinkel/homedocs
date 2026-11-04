@@ -4,3 +4,8 @@ PySide6-Essentials==6.11.3
 # Reading PDFs: PDFium (Chrome's PDF engine) through thin bindings, with no dependencies of its own.
 # (pypdf is pure Python but much slower and weaker on real-world PDFs; PyMuPDF is AGPL and far bigger)
 pypdfium2==5.14.0
+# Vectors (the search index by meaning) and the models' inputs. 2.4: the last with Python 3.11
+numpy==2.4.4
+# Runs the embedding and re-ranking models on the CPU (no PyTorch). Its helper libraries (protobuf,
+# flatbuffers, packaging) install alongside but aren't imported, so they're not in the app.
+onnxruntime==1.31.0

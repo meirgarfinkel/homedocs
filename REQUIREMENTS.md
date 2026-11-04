@@ -103,11 +103,15 @@ Agreed 2026-11-04. **v1** = first release, **v2** = next release, **Later** = no
 
 ## Speed budget (typical laptop CPU)
 
-| Step | Target |
-|---|---|
-| Embed the question | < 50 ms |
-| Keyword + vector search | < 50 ms |
-| Rerank 30 candidates | < 300 ms |
+Measured on a 2021 laptop (Intel i7-1165G7, 4 cores) where there's a measurement.
+
+| Step | Target | Measured |
+|---|---|---|
+| Embed the question | < 50 ms | 5–35 ms |
+| Keyword + vector search | < 50 ms | a few ms |
+| Re-rank the candidates | < 300 ms | ~0.35 s, **over**: 20 candidates, their first 256 tokens, 8-bit model (30 full-length ones at full precision took 2.6 s). The whole search still fits its 1 s |
+| Question to passages on screen | < 1 s | ~0.4 s |
+| Embedding while indexing (background) | — | 7–11 passages/s on half the cores: ~30 min for 15,000 passages |
 | First answer token | < 2 s |
 | Generation | ≥ 10 tokens/s |
 
@@ -118,7 +122,7 @@ Candidates, to be compared on the eval set before pinning. Each licence must all
 | Role | Candidates | Size | Runtime |
 |---|---|---|---|
 | Embeddings | bge-small-en-v1.5 (MIT); all-MiniLM-L6-v2 as the fast fallback | ~30–130 MB | ONNX Runtime |
-| Reranker | ms-marco-MiniLM-L-6-v2 cross-encoder (Apache 2.0); L-4 if it's too slow | ~25–90 MB | ONNX Runtime |
+| Reranker | ms-marco-MiniLM-L-6-v2 cross-encoder (Apache 2.0), 8-bit; L-4 if it's too slow | ~25–90 MB | ONNX Runtime |
 | Chat | Qwen2.5-1.5B-Instruct (Apache 2.0), newer Qwen 1–2B and SmolLM 1.7B to compare; Q4_K_M GGUF | ~1 GB | llama.cpp (llama-cpp-python) |
 
 No PyTorch anywhere: ONNX and llama.cpp keep the bundle small and fast on CPU.

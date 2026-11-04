@@ -15,6 +15,19 @@ os.environ["HOMEDOCS_HOME"] = os.path.join(_SAFE, "data")
 os.environ["XDG_DATA_HOME"] = os.path.join(_SAFE, "share")
 
 
+@pytest.fixture(autouse=True)
+def fake_models(monkeypatch):
+    """Every test gets the fake models instead of downloading the real ones (tests of downloading
+    itself serve their files from disk)."""
+    from fakes import FakeEmbedder, FakeReranker
+
+    from homedocs.core import models
+    from homedocs.ui import models_ui
+
+    monkeypatch.setattr(models.Model, "ready", lambda self: True)
+    monkeypatch.setattr(models_ui.ModelLoader, "_load", staticmethod(lambda: (FakeEmbedder(), FakeReranker())))
+
+
 @pytest.fixture
 def hd(tmp_path, monkeypatch):
     """homedocs with its data folder in tmp_path. (Fake models join here as they arrive.)"""

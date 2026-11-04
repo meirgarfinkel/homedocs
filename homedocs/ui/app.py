@@ -197,8 +197,25 @@ def run_self_test(app) -> int:
         pdf.close()
         ok("PDFs can be read (PDFium loads).")
 
-        from .main_window import MainWindow
+        import numpy
+        import onnxruntime
 
+        if "CPUExecutionProvider" not in onnxruntime.get_available_providers():
+            raise RuntimeError("ONNX Runtime has no CPU provider")
+        ok(f"ONNX Runtime {onnxruntime.__version__} and numpy {numpy.__version__} load.")
+        from ..core import models
+
+        if models.EMBEDDER.ready() and models.RERANKER.ready():  # (put them in the data folder to check them too)
+            vec = models.Embedder().embed_question("what is the deductible?")
+            score = models.Reranker().score("what is the deductible?", ["The deductible is $500."])[0]
+            if abs(float(numpy.linalg.norm(vec)) - 1) > 1e-3 or score <= 0:
+                raise RuntimeError("the models gave nonsense")
+            ok("the search models run.")
+
+        from .main_window import MainWindow
+        from .models_ui import ModelLoader
+
+        ModelLoader.downloads = False  # (nothing downloaded: builds are checked offline too)
         win = MainWindow()
         win.show()
         end = time.time() + 20
