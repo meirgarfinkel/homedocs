@@ -8,6 +8,7 @@ import sys
 import urllib.request
 
 from .. import __version__
+from .util import open_url
 
 LATEST = "https://api.github.com/repos/meirgarfinkel/homedocs/releases/latest"
 # the file each kind of install updates from
@@ -43,7 +44,7 @@ def version_of(tag: str) -> tuple:
 def latest_release() -> dict:
     """The newest published release, as GitHub describes it."""
     req = urllib.request.Request(LATEST, headers={"Accept": "application/vnd.github+json", "User-Agent": "homedocs"})
-    with urllib.request.urlopen(req, timeout=20) as r:
+    with open_url(req, 20) as r:
         return json.load(r)
 
 
@@ -62,7 +63,7 @@ def download(asset: dict, dest, progress=lambda done, total: None, should_stop=l
     tmp = f"{dest}.part"
     total, done, sha = asset.get("size") or 0, 0, hashlib.sha256()
     req = urllib.request.Request(asset["browser_download_url"], headers={"User-Agent": "homedocs"})
-    with urllib.request.urlopen(req, timeout=60) as r, open(tmp, "wb") as out:
+    with open_url(req, 60) as r, open(tmp, "wb") as out:
         while chunk := r.read(1 << 20):
             if should_stop():
                 out.close()

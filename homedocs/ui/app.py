@@ -212,6 +212,13 @@ def run_self_test(app) -> int:
                 raise RuntimeError("the models gave nonsense")
             ok("the search models run.")
 
+        from ..core.util import ssl_context
+
+        trusted = ssl_context().cert_store_stats()["x509_ca"]
+        if not trusted:  # (then downloading the models and checking for updates fail)
+            raise RuntimeError("no trusted certificates were found, so HTTPS can't work")
+        ok(f"HTTPS can check servers ({trusted} trusted certificates).")
+
         from ..core import llm
 
         if getattr(sys, "frozen", False) or llm.available():  # (from source, only once it's built)

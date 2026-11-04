@@ -31,3 +31,37 @@ def lower_priority():
             os.nice(10)  # (Linux: just this thread)
     except Exception:
         pass
+
+
+# Where each system keeps its list of trusted certificates (the first that exists is used).
+CA_FILES = (
+    "/etc/ssl/certs/ca-certificates.crt",  # Debian, Ubuntu, Pop!_OS, Mint, Arch, Gentoo
+    "/etc/pki/tls/certs/ca-bundle.crt",  # Fedora, RHEL
+    "/etc/ssl/ca-bundle.pem",  # openSUSE
+    "/etc/ssl/cert.pem",  # macOS, Alpine
+)
+_ssl = None
+
+
+def ssl_context():
+    """For HTTPS: checks servers against this computer's own trusted certificates.
+
+    Python's default doesn't find them in the built app: the Linux one carries AlmaLinux's OpenSSL, which looks
+    where only Fedora and RHEL keep them, and the Mac one looks inside python.org's Python. Windows' own store is
+    read either way. SSL_CERT_FILE, if set, wins."""
+    global _ssl
+    if _ssl is None:
+        import ssl
+
+        cafile = os.environ.get("SSL_CERT_FILE") or None
+        if not cafile and os.name != "nt":
+            cafile = next((f for f in CA_FILES if os.path.isfile(f)), None)
+        _ssl = ssl.create_default_context(cafile=cafile)
+    return _ssl
+
+
+def open_url(req, timeout: float):
+    """urllib.request.urlopen, checked against the computer's trusted certificates (ssl_context)."""
+    import urllib.request
+
+    return urllib.request.urlopen(req, timeout=timeout, context=ssl_context())
