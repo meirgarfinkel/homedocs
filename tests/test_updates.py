@@ -11,6 +11,7 @@ from conftest import open_window, wait_until
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 QtWidgets = pytest.importorskip("PySide6.QtWidgets")
 
+from homedocs import __version__  # noqa: E402
 from homedocs.core import updates  # noqa: E402
 
 
@@ -87,7 +88,8 @@ def said(monkeypatch):
 
 def test_the_latest_version_says_so(window, app, said, monkeypatch, tmp_path):
     monkeypatch.setattr(updates, "how_installed", lambda: "appimage")
-    monkeypatch.setattr(updates, "latest_release", lambda: release(tmp_path, "v0.1.0", "HomeDocs-x86_64.AppImage"))
+    this = release(tmp_path, f"v{__version__}", "HomeDocs-x86_64.AppImage")
+    monkeypatch.setattr(updates, "latest_release", lambda: this)
     window.updater.check()
     wait_until(app, lambda: said)
     assert said == ["This is the latest version."] and not window.updater.busy
@@ -191,7 +193,8 @@ def test_at_startup_a_newer_version_is_downloaded_then_offered(window, app, said
 
 def test_nothing_shows_at_startup_without_an_update(window, app, said, monkeypatch, tmp_path):
     monkeypatch.setattr(updates, "how_installed", lambda: "appimage")
-    monkeypatch.setattr(updates, "latest_release", lambda: release(tmp_path, "v0.1.0", "HomeDocs-x86_64.AppImage"))
+    this = release(tmp_path, f"v{__version__}", "HomeDocs-x86_64.AppImage")
+    monkeypatch.setattr(updates, "latest_release", lambda: this)
     window.updater.check_quietly()
     wait_until(app, lambda: not window.updater.busy)
     assert window.update_bar.isHidden() and said == []

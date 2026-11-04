@@ -4,13 +4,13 @@ panel at the side, and the status pill over the page's corner."""
 from PySide6.QtCore import QEvent, QObject, QRect, QRectF, QSettings, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QKeySequence, QPainter, QPainterPath
 from PySide6.QtWidgets import (
+    QApplication,
     QDockWidget,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMainWindow,
     QMenu,
-    QProgressBar,
     QSizePolicy,
     QStackedWidget,
     QToolBar,
@@ -19,10 +19,13 @@ from PySide6.QtWidgets import (
 )
 
 from ..core.config import data_dir
+from ..core.settings import folders
 from . import theme
+from .indexing import IndexStatus, IndexWatcher
 from .menu import MenuButton, add_row
 from .status_pill import StatusPill
 from .updates import Updater
+from .views.library import LibraryPage
 from .views.pages import Placeholder
 from .views.settings_dialog import SettingsDialog
 from .views.sidebar import ASK, LIBRARY, PAGES, Sidebar
@@ -146,24 +149,6 @@ class AskBox(QLineEdit):
             super().keyPressEvent(e)
 
 
-class _BackgroundStatus(QWidget):
-    """What background work is doing, for the status pill: a line and a progress bar, both hidden while
-    nothing runs. Indexing fills it in."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        lay = QHBoxLayout(self)
-        lay.setContentsMargins(0, 0, 0, 0)
-        self.label = QLabel()
-        self.bar = QProgressBar()
-        self.bar.setFixedWidth(90)
-        self.bar.setTextVisible(False)
-        lay.addWidget(self.label)
-        lay.addWidget(self.bar)
-        self.label.hide()
-        self.bar.hide()
-
-
 class MainWindow(QMainWindow):
     closing = Signal()  # the window is closing (the app quits after it)
 
@@ -175,7 +160,9 @@ class MainWindow(QMainWindow):
         self.loaded = False  # everything the window shows at start has been read once
 
         self.ask_page = Placeholder("Ask a question about your documents in the box above. Answers arrive soon.")
-        self.library_page = Placeholder("The files HomeDocs has read, and any it couldn't, will be listed here.")
+        self.library_page = LibraryPage()
+        self.library_page.count.connect(self._show_count)
+        self.watcher = IndexWatcher(self)
         self.pages = {ASK: self.ask_page, LIBRARY: self.library_page}
         self.stack = QStackedWidget()
         for w in self.pages.values():
@@ -210,9 +197,14 @@ class MainWindow(QMainWindow):
         self._build_toolbar()
         self.updater = Updater(self)
         self._build_menu()
-        self.background = _BackgroundStatus()
+        self.background = IndexStatus(self.watcher)
         # messages and background work in a small box over the page's corner: nothing moves when it shows
         self.status_pill = StatusPill(central, self.statusBar(), self.background)
+        self.watcher.state.connect(self.status_pill.refresh)
+        self.watcher.changed.connect(self.library_page.reload)
+        self.library_page.folders_changed.connect(self.watcher.start)
+        self.library_page.rescan.connect(self.watcher.start)
+        QApplication.instance().applicationStateChanged.connect(self._app_state)
         self.corners = [_Corner(central, right) for right in (False, True)]
         for corner, dock in zip(self.corners, (self.sidebar_dock, self.info_dock), strict=True):
             _CornerSwitch(corner, dock)
@@ -229,12 +221,21 @@ class MainWindow(QMainWindow):
         state = self.settings.value("state")
         if state is not None:
             self.restoreState(state)
-        self.show_page(ASK)
+        self.show_page(ASK if folders() else LIBRARY)  # (the first time: choose folders)
         QTimer.singleShot(0, self._ready)  # once the event loop has run: the window is up
         QTimer.singleShot(8000, self.updater.check_quietly)  # a newer HomeDocs: get it, then offer a restart
 
     def _ready(self):
         self.loaded = True
+        self.watcher.start_if_due()  # look for new and changed files
+
+    def _app_state(self, state):
+        if state == Qt.ApplicationState.ApplicationActive and self.loaded:
+            self.watcher.start_if_due()  # back from another app, where files may have changed
+
+    def _show_count(self, text: str):
+        if self.stack.currentWidget() is self.library_page:
+            self.count_label.setText(text)
 
     def _dock(self, title, name, widget, area) -> QDockWidget:
         dock = QDockWidget(title, self)
@@ -341,6 +342,9 @@ class MainWindow(QMainWindow):
     def show_page(self, place: str):
         self.stack.setCurrentWidget(self.pages[place])
         self.page_title.setText(PAGES[place])
+        self.count_label.setText("")
+        if place == LIBRARY:
+            self.library_page.reload()
         self.sidebar.select(place)
 
     def bring_forward(self):
@@ -355,6 +359,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, e):  # noqa: N802 (Qt's name)
         self.closing.emit()
+        self.watcher.shutdown()
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("state", self.saveState())
         self.settings.sync()  # written now: the app quits without waiting

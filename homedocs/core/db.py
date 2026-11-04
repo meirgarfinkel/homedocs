@@ -13,12 +13,54 @@ import sqlite3
 
 from .config import data_dir, db_file
 
-VERSION = 1
+VERSION = 2
 
-# The whole schema, with a comment on every column. Empty until indexing arrives.
-TABLES: dict[str, str] = {}
+# The whole schema, with a comment on every column. (Only SQL that SQLite 3.34 knows: the Linux build's.)
+TABLES: dict[str, str] = {
+    "files": """
+        CREATE TABLE files (
+            id INTEGER PRIMARY KEY,
+            path TEXT NOT NULL UNIQUE,      -- the full path
+            name TEXT NOT NULL,             -- the file name: searched along with each passage
+            size INTEGER NOT NULL,          -- bytes, and
+            mtime REAL NOT NULL,            -- modified time, when last looked at: unchanged means skip it
+            hash TEXT,                      -- sha256 of the contents when last read (NULL: never read)
+            status TEXT NOT NULL,           -- 'pending' (to read), 'indexed', 'failed' or 'skipped'
+            error TEXT,                     -- why it failed or was skipped
+            offline INTEGER NOT NULL DEFAULT 0,  -- 1: its folder can't be reached now (the passages stay)
+            indexed_at REAL                 -- when it was last read
+        )""",
+    "chunks": """
+        CREATE TABLE chunks (
+            id INTEGER PRIMARY KEY,
+            file_id INTEGER NOT NULL REFERENCES files(id),
+            seq INTEGER NOT NULL,           -- its place in the file: 0, 1, 2...
+            page INTEGER,                   -- the PDF pages it starts and ends on (from 1); NULL for other
+            page_end INTEGER,               -- files
+            heading TEXT,                   -- the headings it's under, like "Coverage > Deductible", or NULL
+            char_start INTEGER NOT NULL,    -- where it starts and ends in the file's text (as parsers.py
+            char_end INTEGER NOT NULL,      -- reads it)
+            text TEXT NOT NULL
+        )""",
+    # What keyword search reads: each passage with its file name and headings
+    "chunk_search": """
+        CREATE VIEW chunk_search AS
+        SELECT c.id, c.file_id, f.name, COALESCE(c.heading, '') AS heading, c.text
+        FROM chunks c JOIN files f ON f.id = c.file_id""",
+    # The keyword index, its text kept in chunks (not copied). Its rows are added and removed with the
+    # passages, in the same transaction, by store.py: never with triggers, since removing a row needs the
+    # exact text it was added with.
+    "chunks_fts": """
+        CREATE VIRTUAL TABLE chunks_fts USING fts5(
+            name, heading, text, content='chunk_search', content_rowid='id',
+            tokenize='porter unicode61 remove_diacritics 2'
+        )""",
+}
 
-INDEXES: list[str] = []
+INDEXES: list[str] = [
+    "CREATE INDEX IF NOT EXISTS chunks_file ON chunks(file_id, seq)",
+    "CREATE INDEX IF NOT EXISTS files_status ON files(status)",
+]
 
 
 class DatabaseVersionError(RuntimeError):
@@ -29,7 +71,15 @@ def columns(db, table) -> list[str]:
     return [r[1] for r in db.execute(f"PRAGMA table_info({table})")]
 
 
-UPGRADES = {}  # version: the step that brings it up to the next one
+def _to_2(db):
+    """Version 1 (0.1.0) had no tables: indexing's arrive."""
+    for create in V2_TABLES.values():
+        db.execute(create)
+
+
+V2_TABLES = dict(TABLES)  # (as version 2 shipped: TABLES changes later, this doesn't)
+
+UPGRADES = {1: _to_2}  # version: the step that brings it up to the next one
 
 
 def migrate(db: sqlite3.Connection, path):

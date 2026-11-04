@@ -179,8 +179,23 @@ def run_self_test(app) -> int:
         ok("the app's font loads.")
         from ..core.db import open_db
 
-        open_db().close()
-        ok("the database opens.")
+        db = open_db()
+        db.execute("SELECT COUNT(*) FROM chunks_fts WHERE chunks_fts MATCH 'test'").fetchone()
+        db.close()
+        ok("the database opens, with its keyword index (SQLite's FTS5).")
+
+        import io
+
+        import pypdfium2 as pdfium
+
+        made, out = pdfium.PdfDocument.new(), io.BytesIO()
+        made.new_page(200, 200)
+        made.save(out)
+        made.close()
+        pdf = pdfium.PdfDocument(out.getvalue())
+        pdf[0].get_textpage().get_text_bounded()
+        pdf.close()
+        ok("PDFs can be read (PDFium loads).")
 
         from .main_window import MainWindow
 

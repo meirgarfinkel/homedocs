@@ -262,6 +262,22 @@ QToolButton#pageBack {{ border: none; border-radius: 16px; padding: 4px 12px 4px
                         font-weight: 600; }}
 QToolButton#pageBack:hover {{ background: {hover}; color: {text}; }}
 
+QLabel#emptyTitle {{ font-size: 20px; font-weight: 700; }}
+QFrame#folderRow {{ background: {side}; border-radius: 10px; }}
+QLabel#folderPath {{ font-weight: 600; background: transparent; }}
+QFrame#folderRow QLabel {{ background: transparent; }}
+QPushButton#filter {{ background: transparent; border: 1px solid {border}; border-radius: 13px; padding: 5px 14px;
+                      font-weight: 600; color: {muted}; }}
+QPushButton#filter:hover {{ background: {hover}; color: {text}; }}
+QPushButton#filter:checked {{ background: {accentSoft}; border-color: transparent; color: {accentText}; }}
+QTableView#files {{ background: {bg}; border: none; outline: 0; selection-background-color: {accentSoft};
+                    selection-color: {text}; }}
+QTableView#files::item {{ padding: 0 8px; border-bottom: 1px solid {border}; }}
+QTableView#files::item:hover {{ background: {hover}; }}
+QTableView#files::item:selected {{ background: {accentSoft}; color: {text}; }}
+QTableView#files QHeaderView::section {{ background: {bg}; color: {muted}; border: none;
+    border-bottom: 1px solid {border}; padding: 6px 8px; font-weight: 600; font-size: 12px; }}
+
 QTreeWidget#sidebar {{ background: {side}; border: none; padding: 10px 10px; outline: 0; }}
 QTreeWidget#sidebar::item {{ min-height: 36px; padding: 0 4px; border: none; }}
 QTreeWidget#sidebar::item:first {{ border-top-left-radius: 18px; border-bottom-left-radius: 18px;
