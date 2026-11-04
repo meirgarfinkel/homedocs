@@ -16,7 +16,7 @@ ENGINE="${CONTAINER_ENGINE:-$(command -v podman || command -v docker || true)}"
 
 # What a desktop install of each family already has, plus a virtual screen (Xvfb).
 DEB="xvfb xauth libgl1 libegl1 libgbm1 libdrm2 libx11-6 libx11-xcb1 libxcb1 libfontconfig1 libfreetype6"
-DEB="$DEB libharfbuzz0b fonts-dejavu-core"
+DEB="$DEB libharfbuzz0b fonts-dejavu-core ca-certificates"
 case "$IMAGE" in
   debian:*|ubuntu:*)  # the sound library was renamed in newer releases
     SETUP="export DEBIAN_FRONTEND=noninteractive; apt-get update -qq >/dev/null

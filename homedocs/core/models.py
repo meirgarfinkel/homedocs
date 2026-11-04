@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .config import RERANK_MAX_TOKENS, data_dir
+from .util import open_url
 
 HF = "https://huggingface.co"
 
@@ -144,7 +145,7 @@ def _fetch(f: ModelFile, dest: Path, progress, should_stop) -> bool:
     if have:
         headers["Range"] = f"bytes={have}-"
     req = urllib.request.Request(f.url, headers=headers)
-    with urllib.request.urlopen(req, timeout=60) as r:
+    with open_url(req, 60) as r:
         if have and getattr(r, "status", 200) != 206:  # the server sent all of it: start over
             have = 0
         with open(part, "ab" if have else "wb") as out:

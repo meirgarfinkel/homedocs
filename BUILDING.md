@@ -57,7 +57,9 @@ without a container (it needs `sudo apt install python3-venv libxcb-cursor0 buil
 systems older than yours.
 
 **What's left to the computer it runs on:** graphics libraries (they must match its drivers), fonts, sound,
-and the C/C++ runtime. Every desktop Linux has these. Everything else is bundled.
+the C/C++ runtime, and the list of trusted certificates HTTPS checks servers against (`core/util.py` finds it
+wherever that Linux keeps it; the bundled OpenSSL alone would only look where Fedora does). Every desktop Linux
+has these. Everything else is bundled.
 
 If double-clicking does nothing on some computer, running it as
 `./HomeDocs-x86_64.AppImage --appimage-extract-and-run` works without the FUSE support AppImages normally use.

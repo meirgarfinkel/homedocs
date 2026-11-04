@@ -12,7 +12,7 @@ OUT="$(readlink -f "${2:-$ROOT/HomeDocs.deb}")"
 VERSION="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' "$ROOT/homedocs/__init__.py")"
 # what HomeDocs needs from the system (every desktop has these already), as the AppImage's self-test checks
 DEPENDS="libgl1, libegl1, libgbm1, libdrm2, libx11-6, libx11-xcb1, libxcb1, libfontconfig1, libfreetype6"
-DEPENDS="$DEPENDS, libharfbuzz0b, libasound2t64 | libasound2"
+DEPENDS="$DEPENDS, libharfbuzz0b, libasound2t64 | libasound2, ca-certificates"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
