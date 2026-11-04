@@ -4,7 +4,7 @@ page, headings and place in the text."""
 
 import re
 
-from homedocs.core.config import MIN_SECTION_WORDS, OVERLAP_WORDS, PASSAGE_WORDS
+from homedocs.core.config import MIN_PASSAGE_WORDS, MIN_SECTION_WORDS, OVERLAP_WORDS, PASSAGE_WORDS
 from homedocs.core.parsers import Doc
 from homedocs.core.passages import split
 
@@ -77,7 +77,11 @@ def test_each_passage_knows_its_page():
     text = page1 + "\n\n" + page2
     doc = Doc(text, pages=[0, len(page1) + 2])
     parts = split(doc)
-    assert [(p.page, p.page_end) for p in parts] == [(1, 2), (1, 2)]  # (both cross the page break)
+    second = len(page1) + 2
+    for p in parts:
+        assert (p.page, p.page_end) == (1 if p.start < second else 2, 1 if p.end <= second else 2)
+    assert (parts[0].page, parts[0].page_end) == (1, 1)  # it ends where page 1 does (a paragraph's end)
+    assert any(p.page == 1 and p.page_end == 2 for p in parts)  # (one starts with page 1's end: the overlap)
     (one,) = split(Doc(page1, pages=[0]))
     assert (one.page, one.page_end) == (1, 1)
 
@@ -87,3 +91,40 @@ def test_markdown_headings_inside_a_paragraph_are_their_own_line():
     doc = Doc(text, headings=[(0, 1, "Title"), (text.index("## Part"), 2, "Part")])
     (p,) = split(doc)  # all short: one passage, the heading trail at its start
     assert p.heading == "Title" and p.text == text
+
+
+def paragraph(i, n_sentences):
+    return " ".join(f"Paragraph {i} sentence {j} says a little more." for j in range(n_sentences))  # 8 words
+
+
+def ends_a_paragraph(doc, p):
+    return p.end == len(doc.text) or doc.text[p.end : p.end + 2] == "\n\n"
+
+
+def test_a_full_passage_ends_where_a_paragraph_ends():
+    doc = Doc("\n\n".join(paragraph(i, 12) for i in range(10)))  # paragraphs of 96 words
+    parts = split(doc)
+    check_positions(doc, parts)
+    assert len(parts) > 3
+    for p in parts:
+        assert ends_a_paragraph(doc, p), p.text[-60:]
+        assert words(p.text) <= PASSAGE_WORDS
+    for a, b in zip(parts, parts[1:], strict=False):  # still overlapping: the end of one paragraph leads in
+        assert 0 < words(doc.text[b.start : a.end]) <= OVERLAP_WORDS
+
+
+def test_a_paragraph_end_too_early_isnt_used():
+    short = paragraph(0, 3)  # 24 words: far too little to end a passage on
+    doc = Doc(short + "\n\n" + paragraph(1, 60))
+    first = split(doc)[0]
+    assert first.end > len(short) + 2 and words(first.text) > MIN_PASSAGE_WORDS  # cut inside the long one
+    assert first.text.endswith("a little more.")  # (between sentences)
+
+
+def test_no_passage_is_left_too_long_after_a_paragraph_cut():
+    paras = [paragraph(0, 20), paragraph(1, 5), paragraph(2, 30), paragraph(3, 2), paragraph(4, 40)]
+    doc = Doc("\n\n".join(paras))
+    parts = split(doc)
+    check_positions(doc, parts)
+    assert all(words(p.text) <= PASSAGE_WORDS for p in parts)
+    assert parts[-1].end == len(doc.text)

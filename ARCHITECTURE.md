@@ -146,9 +146,12 @@ indexing together). For each folder in the settings:
    written, `#` and underlined headings found; text decoded as UTF-8, UTF-16 or Windows-1252). A failure stores
    the reason (a scanned PDF, a password, a damaged file) and the file is marked `failed`, not retried until it
    changes.
-5. **Split:** `passages.py` cuts the text into passages of about 300 words (roughly 400 tokens), counted in
-   words so changing the model never means splitting again. It breaks between paragraphs, else sentences, else
-   words; the last 50 words or so (whole sentences) start the next passage too. A heading starts a new passage
+5. **Split:** `passages.py` cuts the text into passages of up to 300 words (roughly 400 tokens), counted in
+   words so changing the model never means splitting again. Sentences are added until the next would pass 300
+   words; the passage then ends at the last paragraph end past 150 words, or, if there's none (one long
+   paragraph), where it is, between sentences (a sentence longer than a passage is cut between words). The last
+   50 words or so (whole sentences) start the next passage too, at every cut, since a paragraph often leans on
+   the one before it. A heading starts a new passage
    once the current one has some text, and never ends one. Each passage keeps its pages, the headings it's under
    (like `Coverage > Deductible`) and its start and end position in the file's text.
 6. **Save:** one transaction per file replaces its old passages and keyword index rows, then marks it

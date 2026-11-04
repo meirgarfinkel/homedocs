@@ -14,6 +14,7 @@ MAX_FILE_MB = 100  # bigger files are listed as skipped, not read
 # 300 words is about 400 tokens of English, well inside the 512 the embedding models take.
 PASSAGE_WORDS = 300
 OVERLAP_WORDS = 50  # the end of each passage starts the next, so a sentence near the cut is in both
+MIN_PASSAGE_WORDS = 150  # a full passage ends at the last paragraph's end past this many words, if any
 MIN_SECTION_WORDS = 50  # a heading starts a new passage once the current one has at least this many
 MAX_PASSAGE_CHARS = 3000  # text without spaces (a long URL, a table dump) is cut at this length
 
