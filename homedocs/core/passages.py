@@ -1,9 +1,10 @@
 """Splitting a file's text into passages: the pieces that are searched, and given to the model to answer
 from.
 
-A passage is about PASSAGE_WORDS words. It breaks between paragraphs where it can, else between
-sentences, else between words. The last OVERLAP_WORDS words or so (whole sentences) start the next
-passage too, so a sentence near a cut is in both. A heading starts a new passage (once the current one has
+A passage is up to PASSAGE_WORDS words. When it's full, it ends at the last paragraph end past
+MIN_PASSAGE_WORDS; failing that (one long paragraph) between sentences, else between words. The last
+OVERLAP_WORDS words or so (whole sentences) start the next passage too, at every cut: a paragraph often
+leans on the one before it ("This limit applies..."). A heading starts a new passage (once the current one has
 some text), and never ends one. Each passage keeps its page, the headings it's under, and where it starts
 and ends in the text, so it can be shown and highlighted later.
 """
@@ -12,7 +13,7 @@ import bisect
 import re
 from dataclasses import dataclass
 
-from .config import MAX_PASSAGE_CHARS, MIN_SECTION_WORDS, OVERLAP_WORDS, PASSAGE_WORDS
+from .config import MAX_PASSAGE_CHARS, MIN_PASSAGE_WORDS, MIN_SECTION_WORDS, OVERLAP_WORDS, PASSAGE_WORDS
 from .parsers import Doc
 
 _PARAGRAPHS = re.compile(r"\n[ \t]*\n\s*")  # a blank line
@@ -39,6 +40,7 @@ class _Piece:
     end: int
     words: int
     heading: bool = False  # a heading's own line
+    starts_paragraph: bool = False
 
 
 def _words(text: str) -> int:
@@ -93,14 +95,17 @@ def _pieces(doc: Doc) -> list[_Piece]:
         for a, b in zip(cuts, cuts[1:], strict=False):
             for s, e in _spans(text, a, b, _NOTHING):  # (just trims the spaces)
                 if s in heading_starts:
-                    pieces.append(_Piece(s, e, _words(text[s:e]), heading=True))
+                    pieces.append(_Piece(s, e, _words(text[s:e]), heading=True, starts_paragraph=True))
                     continue
+                first = len(pieces)
                 for ss, se in _spans(text, s, e, _SENTENCE_END):
                     n = _words(text[ss:se])
                     if n > PASSAGE_WORDS or se - ss > MAX_PASSAGE_CHARS:
                         pieces += _split_long(text, ss, se)
                     else:
                         pieces.append(_Piece(ss, se, n))
+                if len(pieces) > first:
+                    pieces[first].starts_paragraph = True
     return pieces
 
 
@@ -125,16 +130,24 @@ def split(doc: Doc) -> list[Passage]:
     """The passages of a file's text, in order."""
     groups, current, words = [], [], 0
     for piece in _pieces(doc):
-        content = any(not p.heading for p in current)
-        new_section = piece.heading and words >= MIN_SECTION_WORDS
-        too_long = words + piece.words > PASSAGE_WORDS or (current and piece.end - current[0].start > MAX_PASSAGE_CHARS)
-        if content and (new_section or too_long):
+        while True:  # (again after a cut at a paragraph's end: what's carried over may still be too long)
+            content = any(not p.heading for p in current)
+            new_section = piece.heading and words >= MIN_SECTION_WORDS
+            too_long = words + piece.words > PASSAGE_WORDS or (
+                current and piece.end - current[0].start > MAX_PASSAGE_CHARS
+            )
+            if not (content and (new_section or too_long)):
+                break
             tail = []  # headings at the end go with what follows them
             while current[-1].heading:
                 tail.insert(0, current.pop())
-            groups.append(current)
-            current = tail if (tail or new_section) else _overlap(current)
+            cut = None if (tail or new_section) else _paragraph_cut(current)
+            group, rest = (current[:cut], current[cut:]) if cut else (current, [])
+            groups.append(group)
+            current = tail if (tail or new_section) else _overlap(group) + rest
             words = sum(p.words for p in current)
+            if not rest:
+                break
         current.append(piece)
         words += piece.words
     if current and (any(not p.heading for p in current) or not groups):
@@ -153,6 +166,19 @@ def split(doc: Doc) -> list[Passage]:
         )
         out.append(Passage(start, end, doc.text[start:end], *pages, heading_at(start)))
     return out
+
+
+def _paragraph_cut(current: list[_Piece]) -> int | None:
+    """Where a full passage should end: before the last paragraph that starts past MIN_PASSAGE_WORDS words
+    (the rest goes on to the next passage), or None to end it where it is."""
+    words = sum(p.words for p in current)
+    for i in range(len(current) - 1, 0, -1):
+        words -= current[i].words
+        if words < MIN_PASSAGE_WORDS:
+            return None
+        if current[i].starts_paragraph:
+            return i
+    return None
 
 
 def _overlap(group: list[_Piece]) -> list[_Piece]:
