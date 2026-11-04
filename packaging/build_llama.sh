@@ -58,11 +58,12 @@ jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu)"
 
 rm -rf "$OUT"
 mkdir -p "$OUT"
-# each library once, under the name the others load it by (libllama.so.0, libllama.0.dylib), plus the CPU
+# each library once, under the name the others load it by (libllama.so.0, libllama.0.dylib, not
+# libllama.0.7.0.dylib), plus the CPU
 # backends, which are loaded by path at run time
 for f in "$WORK"/out/* "$WORK"/bin/*; do
   case "$(basename "$f")" in
-    libhd_llama.* | lib*.so.[0-9] | lib*.[0-9].dylib | libggml-cpu*.so) cp -L "$f" "$OUT/" ;;
+    libhd_llama.* | lib*.so.[0-9] | lib*[!0-9.].[0-9].dylib | libggml-cpu*.so) cp -L "$f" "$OUT/" ;;
   esac
 done
 echo "Built llama.cpp $LLAMA_TAG with hd_llama into $OUT:"

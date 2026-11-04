@@ -39,10 +39,12 @@ a = Analysis(
     noarchive=False,
 )
 
-# PyInstaller also copies the llama.cpp libraries hd_llama links against to the top folder; only the ones in
-# llama/ are used (each loads the others from its own folder)
-_llama_names = {f.name for f in LLAMA.iterdir()}
-a.binaries = [b for b in a.binaries if "/" in b[0].replace("\\", "/") or b[0] not in _llama_names]
+# PyInstaller also copies the llama.cpp libraries hd_llama links against to the top folder. On Linux and
+# Windows only the ones in llama/ are used (each loads the others from its own folder), so the copies go. On a
+# Mac they stay: PyInstaller rewrites every library there to load what it links against from the top folder.
+if not MAC:
+    _llama_names = {f.name for f in LLAMA.iterdir()}
+    a.binaries = [b for b in a.binaries if "/" in b[0].replace("\\", "/") or b[0] not in _llama_names]
 
 # Qt plugins the app doesn't use (it draws its own widgets).
 SKIP_PLUGINS = {"qmltooling", "printsupport", "sqldrivers", "generic", "networkinformation", "tls"}
