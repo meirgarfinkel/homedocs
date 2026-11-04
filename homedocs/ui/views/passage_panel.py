@@ -1,5 +1,6 @@
 """The Info panel's passage view: a result in full, with its file, its place in the file, the question's words
-highlighted, and buttons to open the file or show it in its folder."""
+highlighted (or, opened from an answer's link, the sentence backing it), and buttons to open the file or show it
+in its folder."""
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
@@ -60,7 +61,8 @@ class PassagePanel(QWidget):
         self.result = None
         self.show_result(None)
 
-    def show_result(self, r: Result | None):
+    def show_result(self, r: Result | None, focus: tuple[int, int] | None = None):
+        """r in full; focus: a sentence of it to highlight instead of the question's words."""
         self.result = r
         self.hint.setVisible(r is None)
         for w in self.details + self.buttons:
@@ -70,6 +72,7 @@ class PassagePanel(QWidget):
         self.title.setText(r.name)
         self.where.setText(r.where() + ("  ·  Offline: its folder can't be reached" if r.offline else ""))
         self.path.setText(r.path)
-        self.text.setText(marked(r.text, r.spans, paragraphs=True))
+        spans = [focus] if focus else r.spans
+        self.text.setText(marked(r.text, spans, paragraphs=True, strong=focus is not None))
         self.open_button.setEnabled(not r.offline)
         self.folder_button.setEnabled(not r.offline)

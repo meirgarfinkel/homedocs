@@ -29,6 +29,17 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q
 `HOMEDOCS_HOME=/some/folder` points the app (and the tests) at a separate data folder, so you can try things
 without touching your own.
 
+**Answers** need llama.cpp, which isn't on pip: build it once (a few minutes; needs git and a C/C++ compiler,
+and fetches CMake if it's missing) with
+
+```bash
+bash packaging/build_llama.sh          # into build/llama, where the app looks when run from source
+```
+
+Without it the app works as before and shows passages without an answer. The tests use a fake chat model either
+way; `tests/test_llm.py` runs our bindings against a real one when you point it at a small GGUF file:
+`HOMEDOCS_TEST_GGUF=/path/to/Qwen3-0.6B-Q4_K_M.gguf`.
+
 ## Dependencies
 
 Kept to the minimum (see ARCHITECTURE.md, *Dependencies*). Before adding a library, check what it pulls in

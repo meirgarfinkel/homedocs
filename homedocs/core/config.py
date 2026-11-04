@@ -30,6 +30,19 @@ RERANK_MAX_TOKENS = 256
 SHOW_RESULTS = 8
 EMBED_BATCH = 8  # passages embedded at a time while indexing (stopping waits for one batch at most)
 
+# Answers: the chat model reads the best ANSWER_PASSAGES and writes at most ANSWER_TOKENS. It isn't asked at all
+# when the best passage's re-ranker score is below NOT_FOUND_SCORE: answerable questions scored as low as -5.8
+# in the test, unanswerable ones -5.3 to -10.6, so only clearly hopeless ones are cut. A sentence of the answer
+# counts as backed by a passage sentence holding SUPPORT_WORDS of its words, or this close in meaning
+# (SUPPORT_MEANING, the cosine of their vectors). (Measured starting values: see REQUIREMENTS.md.)
+ANSWER_PASSAGES = 3
+ANSWER_TOKENS = 300
+ANSWER_PASSAGE_CHARS = 2800  # a passage longer than this (a long table, say) is cut, so three always fit
+NOT_FOUND_SCORE = -7.0
+SUPPORT_WORDS = 0.6
+SUPPORT_MEANING = 0.80
+N_CTX = 3072  # the chat model's context: instructions, three passages, the question and the answer
+
 RESCAN_GAP = 60  # seconds: coming back to the window looks for changed files at most this often
 
 

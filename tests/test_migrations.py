@@ -114,3 +114,22 @@ def test_a_database_from_0_2_0_keeps_its_passages_and_gains_vectors(hd, monkeypa
     db.close()
     (backup,) = (hd.data_dir() / "backups").iterdir()
     assert backup.name.startswith("homedocs-v2-")
+
+
+def test_a_database_from_0_3_0_keeps_its_vectors_and_gains_questions(hd, monkeypatch):
+    monkeypatch.setattr(dbmod, "_ready_dbs", set())
+    with sqlite3.connect(dbmod.db_file()) as raw:  # what 0.3.0 made: version 3, with a passage embedded
+        for create in [*dbmod.V2_TABLES.values(), dbmod.TABLES["vectors"]]:
+            raw.execute(create)
+        raw.execute("INSERT INTO files (path, name, size, mtime, status) VALUES ('/a.txt', 'a.txt', 1, 1, 'indexed')")
+        raw.execute("INSERT INTO chunks (file_id, seq, char_start, char_end, text) VALUES (1, 0, 0, 5, 'hello')")
+        raw.execute("INSERT INTO vectors (chunk_id, model, vec) VALUES (1, 'm', x'00000000')")
+        raw.execute("PRAGMA user_version = 3")
+    raw.close()
+    db = hd.open_db()
+    assert db.execute("PRAGMA user_version").fetchone()[0] == dbmod.VERSION
+    assert db.execute("SELECT model FROM vectors").fetchone()[0] == "m"
+    assert dbmod.columns(db, "questions") == ["id", "asked", "question", "answer", "passages", "sources"]
+    db.close()
+    (backup,) = (hd.data_dir() / "backups").iterdir()
+    assert backup.name.startswith("homedocs-v3-")

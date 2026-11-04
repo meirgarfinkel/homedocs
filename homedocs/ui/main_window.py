@@ -20,8 +20,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core.config import data_dir
-from ..core.search import Searcher
+from ..core import answer as answers
+from ..core import models as model_files
+from ..core.config import ANSWER_PASSAGES, data_dir
+from ..core.db import open_db
+from ..core.search import Found, Searcher
 from ..core.settings import folders
 from . import theme, workers
 from .indexing import IndexStatus, IndexWatcher
@@ -215,7 +218,15 @@ class MainWindow(QMainWindow):
         self.models.progress.connect(self._model_progress)
         self.models.ready.connect(self._models_ready)
         self.models.failed.connect(self._models_failed)
+        self.models.answers_progress.connect(self._answers_progress)
+        self.models.answers_ready.connect(self._answers_ready)
+        self.models.answers_failed.connect(self._answers_failed)
+        self.answerer = answers.Answerer(model_files.load_chat)
+        self._answer_n = 0  # the answer being written: older ones' text is dropped
+        self._answers_problem = None
         self.ask_page.opened.connect(self.open_passage)
+        self.ask_page.source.connect(self.open_source)
+        self.sidebar.reopen.connect(self.reopen_question)
         self.ask_page.choose_folders.connect(lambda: (self.show_page(LIBRARY), self.library_page.add_folder()))
         self.ask_page.retry.connect(self._retry_models)
         self.library_page.folders_changed.connect(self._update_note)
@@ -256,6 +267,7 @@ class MainWindow(QMainWindow):
         self._update_note()
         self.models.start()  # downloaded the first time, then loaded
         self.watcher.start_if_due()  # look for new and changed files
+        workers.run(_recent, lambda rows, err: rows and self.sidebar.set_recent(rows))
 
     def _app_state(self, state):
         if state == Qt.ApplicationState.ApplicationActive and self.loaded:
@@ -378,6 +390,7 @@ class MainWindow(QMainWindow):
         q = (question if question is not None else self.ask_box.text()).strip()
         if not q:
             return
+        self._stop_answer()
         self.show_page(ASK)
         self.ask_page.searching(q)
         self._asking.run(self.searcher.search, lambda found, err: self._answered(q, found, err), q)
@@ -388,10 +401,63 @@ class MainWindow(QMainWindow):
             self.ask_page.show_error(f"Something went wrong while searching: {err}")
             return
         self.ask_page.show_found(question, found)
+        if self.models.answers:
+            self._write_answer(question, found)
+
+    def _stop_answer(self):
+        self._answer_n += 1
+        self.answerer.stop()
+
+    def _write_answer(self, question: str, found: Found):
+        n = self._answer_n
+        card = self.ask_page.answer
+        if answers.should_ask(found):
+            card.reading(min(ANSWER_PASSAGES, len(found.results)))
+        workers.run_streaming(
+            lambda emit: self.answerer.answer(question, found, self.searcher.embedder, emit),
+            lambda text: n == self._answer_n and card.writing(text),
+            lambda a, err: self._answer_done(n, found, a, err),
+        )
+
+    def _answer_done(self, n, found, a, err):
+        if n != self._answer_n:
+            return  # a newer question took over
+        if err is not None:
+            print(f"answer: {err!r}")
+            self.ask_page.answer.failed(f"Couldn't write an answer: {err}")
+            return
+        if a is None:
+            return  # stopped
+        self.ask_page.answer.done(a)
+        workers.run(_save, lambda rows, err: rows and self.sidebar.set_recent(rows), a, found.results)
+
+    def reopen_question(self, qid: int):
+        """A recent question, as it was answered (the passages shown then, if they're still there)."""
+        self._stop_answer()
+        n = self._answer_n
+        workers.run(_load_question, lambda got, err: n == self._answer_n and self._reopened(qid, got, err), qid)
+
+    def _reopened(self, qid, got, err):
+        if err is not None or got is None:
+            print(f"reopen: {err!r}")
+            return
+        (a, shown), asked = got
+        self.show_page(ASK)
+        self.sidebar.select_question(qid)
+        self.ask_box.setText(a.question)
+        self.ask_page.show_found(a.question, Found(shown, 0.0, True), asked=asked)
+        self.ask_page.answer.done(a, saved=True)
 
     def open_passage(self, result):
         self.info.show_result(result)
         self.info_dock.show()
+
+    def open_source(self, a, index: int):
+        """An answer's link: the passage backing that sentence, with the sentence highlighted."""
+        s = a.sentences[index]
+        if s.backed:
+            self.info.show_result(a.passages[s.passage], s.span)
+            self.info_dock.show()
 
     VECTOR_RELOAD_GAP = 20  # seconds: while passages are being embedded, search catches up this often
 
@@ -435,13 +501,29 @@ class MainWindow(QMainWindow):
         self._model_problem = message
         self._update_note()
 
+    def _answers_progress(self, done, total):
+        mb = f"{done / 1e6:,.0f} of {total / 1e6:,.0f} MB"
+        self.statusBar().showMessage(f"Downloading the answer model: {mb}")
+        self._answers_problem = None
+        self._update_note(answers=mb)
+
+    def _answers_ready(self):
+        self.statusBar().clearMessage()
+        self._answers_problem = None
+        self._update_note()
+
+    def _answers_failed(self, message):
+        self.statusBar().clearMessage()
+        self._answers_problem = message
+        self._update_note()
+
     def _retry_models(self):
-        self._model_problem = None
+        self._model_problem = self._answers_problem = None
         self._update_note(downloading="starting")
         self.models.start()
 
-    def _update_note(self, downloading: str | None = None):
-        """The Ask page's note: what's missing for searching (folders, the models), or nothing."""
+    def _update_note(self, downloading: str | None = None, answers: str | None = None):
+        """The Ask page's note: what's missing for searching or answering (folders, the models), or nothing."""
         if not folders():
             self.ask_page.show_note("Choose the folders to search first.", "Choose a folder", "folders")
         elif self._model_problem:
@@ -454,6 +536,16 @@ class MainWindow(QMainWindow):
                 + (f" (downloading {downloading})" if downloading and downloading != "starting" else "")
                 + ". Until then, search finds exact words only."
             )
+        elif self._answers_problem:
+            self.ask_page.show_note(
+                f"{self._answers_problem} Until then, you'll see the passages without an answer.", "Try again", "retry"
+            )
+        elif answers or self.models.answers_busy:
+            self.ask_page.show_note(
+                "Getting answers ready"
+                + (f" (downloading {answers})" if answers else "")
+                + ". Until then, you'll see the passages that match."
+            )
         else:
             self.ask_page.show_note("")
 
@@ -461,9 +553,43 @@ class MainWindow(QMainWindow):
         self.closing.emit()
         self._update_timer.stop()  # (a closed window never checks)
         self.models.stop()
+        self._stop_answer()
         self.watcher.shutdown()
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("state", self.saveState())
         self.settings.sync()  # written now: the app quits without waiting
         self.hide()
         super().closeEvent(e)
+
+
+# --- saved questions (on a worker thread) -------------------------------------------------------------
+
+
+def _recent():
+    db = open_db()
+    try:
+        return answers.recent(db)
+    finally:
+        db.close()
+
+
+def _save(a, shown):
+    """Keep the answer; the recent questions, with it first."""
+    db = open_db()
+    try:
+        answers.save(db, a, shown)
+        return answers.recent(db)
+    finally:
+        db.close()
+
+
+def _load_question(qid):
+    db = open_db()
+    try:
+        got = answers.load(db, qid)
+        row = db.execute("SELECT asked FROM questions WHERE id = ?", (qid,)).fetchone()
+    finally:
+        db.close()
+    if got is None:
+        return None
+    return got, time.strftime("%b %d, %H:%M", time.localtime(row["asked"]))

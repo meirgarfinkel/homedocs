@@ -271,6 +271,9 @@ QFrame#result:hover {{ border-color: {border}; }}
 QFrame#result QLabel {{ background: transparent; }}
 QLabel#resultTitle {{ font-weight: 700; }}
 QLabel#resultText {{ color: {text}; line-height: 140%; }}
+QFrame#answer {{ background: {side}; border: 1px solid {border}; border-radius: 12px; }}
+QFrame#answer QLabel {{ background: transparent; }}
+QLabel#answerText {{ color: {text}; font-size: 15px; }}
 QLabel#tag {{ color: {muted}; border: 1px solid {border}; border-radius: 8px; padding: 1px 7px; font-size: 11px; }}
 QLabel#panelTitle {{ font-size: 16px; font-weight: 700; }}
 QLabel#panelPath {{ color: {muted}; font-size: 11px; }}

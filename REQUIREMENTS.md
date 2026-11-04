@@ -1,7 +1,7 @@
 # HomeDocs — requirements
 
-Ask questions about your own documents and get answers quoted from them, with every quote checked against the
-file. Fully offline, CPU only, in a desktop app for Linux, Windows and Mac.
+Ask questions about your own documents and get short answers built from them, with every sentence traced back to
+the passage that supports it. Fully offline, CPU only, in a desktop app for Linux, Windows and Mac.
 Agreed 2026-11-04. **v1** = first release, **v2** = next release, **Later** = not designed now but not ruled out.
 
 ## Ground rules (apply to everything)
@@ -12,14 +12,15 @@ Agreed 2026-11-04. **v1** = first release, **v2** = next release, **Later** = no
    GitHub for a new release. No telemetry. Questions, answers and feedback never leave the computer.
 3. **Answers only from your files.** The answer is built only from passages found in the user's folders. When
    they don't contain the answer, it says so instead of guessing.
-4. **Every claim is cited, every quote is checked.** Each quote is compared with its source text. A quote that
-   doesn't match is shown as unverified, never passed off as real.
+4. **Every sentence is checked against its source.** The app, not the model, finds the passage sentence that
+   supports each sentence of the answer and links to it. A sentence nothing supports is marked as not found in
+   the files, never passed off as sourced.
 5. **Runs on 8 GB RAM, CPU only.** No GPU needed. The whole app stays around 2 GB of memory in use, with the
    chat model loaded.
 6. **Nothing lost.** Closing mid-index is safe; indexing picks up where it left off. The database survives
    upgrades (backed up first) and is never changed by an older version of the app.
 7. **Scale.** Up to a few thousand files (tens of thousands of passages). Search well under 1 s; the answer
-   starts appearing within about 1–3 s.
+   starts appearing within about 5 s and is finished within about 7 (see the speed budget).
 8. **Platforms.** Same as HomePix: one download per platform, nothing else to install. Written in Python with
    a native Qt (PySide6 widgets) interface.
    - Linux: AppImage plus a .deb, x86_64, glibc 2.34 floor (Debian 12+, Ubuntu 22.04+, Fedora, RHEL/Alma 9,
@@ -66,11 +67,11 @@ Agreed 2026-11-04. **v1** = first release, **v2** = next release, **Later** = no
 | Requirement | Priority |
 |---|---|
 | One question, one answer. A small local model answers from the top passages and streams in word by word | v1 |
-| Inline citations ([1], [2]) on every claim, each linked to its passage | v1 |
-| Each quote checked against its passage: exact after normalizing spaces and quote marks, then a close fuzzy match. Shown as verified or unverified | v1 |
-| "Not in your files" when the passages don't hold the answer | v1 |
+| Each sentence of the answer gets a link ([1], [2]) to the passage that supports it. The app finds it (by the words they share and by meaning); the model isn't asked to cite | v1 |
+| A sentence no passage supports is marked "not found in your files" | v1 |
+| "Not in your files" when the passages don't hold the answer: at once, without the model, when even the best passage scores clearly low; otherwise the model says so | v1 |
 | Asking a new question stops the answer in progress | v1 |
-| Clicking a citation opens the passage in the Info panel with the quote highlighted, the file name and page, and "Open file" (system app) | v1 |
+| Clicking a link opens the passage in the Info panel with the supporting sentence highlighted, the file name and page, and "Open file" (system app) | v1 |
 | Recent questions in the sidebar, reopened without asking the model again | v1 |
 | Copy an answer with its sources | v1 |
 | Follow-up questions that use the earlier answer (chat) | v2 |
@@ -112,8 +113,11 @@ Measured on a 2021 laptop (Intel i7-1165G7, 4 cores) where there's a measurement
 | Re-rank the candidates | < 300 ms | ~0.35 s, **over**: 20 candidates, their first 256 tokens, 8-bit model (30 full-length ones at full precision took 2.6 s). The whole search still fits its 1 s |
 | Question to passages on screen | < 1 s | ~0.4 s |
 | Embedding while indexing (background) | — | 7–11 passages/s on half the cores: ~30 min for 15,000 passages |
-| First answer token | < 2 s |
-| Generation | ≥ 10 tokens/s |
+| First word of the answer | ≤ 5 s | 2.9 s typical (20 test questions); ~4.5 s for the first question after starting, which also loads the model and reads the instructions. 3 passages, ~500 tokens, read at ~110 tokens/s; the instructions are read once and kept. The earlier target of 2 s isn't reachable with a 1.7B model on this CPU |
+| Writing the answer | ≥ 10 tokens/s | ~20–22 tokens/s; a whole answer in 3–7 s |
+
+Not tried yet: sending only the sentences around the matching words instead of whole passages (a shorter prompt
+starts sooner, but may leave out what the answer needs; the evals would have to show it doesn't).
 
 ## Models (downloaded on first run; final pick in milestone 4)
 
@@ -123,12 +127,37 @@ Candidates, to be compared on the eval set before pinning. Each licence must all
 |---|---|---|---|
 | Embeddings | bge-small-en-v1.5 (MIT); all-MiniLM-L6-v2 as the fast fallback | ~30–130 MB | ONNX Runtime |
 | Reranker | ms-marco-MiniLM-L-6-v2 cross-encoder (Apache 2.0), 8-bit; L-4 if it's too slow | ~25–90 MB | ONNX Runtime |
-| Chat | Qwen2.5-1.5B-Instruct (Apache 2.0), newer Qwen 1–2B and SmolLM 1.7B to compare; Q4_K_M GGUF | ~1 GB | llama.cpp (llama-cpp-python) |
+| Chat | Qwen3-1.7B (Apache 2.0), thinking off, Q4_K_M GGUF | 1.1 GB | llama.cpp, through our own small bindings |
 
 No PyTorch anywhere: ONNX and llama.cpp keep the bundle small and fast on CPU.
 
-**Minimal dependencies.** Five libraries in all (PySide6-Essentials, numpy, onnxruntime, llama-cpp-python,
-pypdfium2); everything else uses the standard library. Never a big library for one small feature.
+### How the chat model and its runtime were chosen (2026-11-04)
+
+20 questions over a test folder (16 answerable from a lease, insurance, manuals and the like; 4 not), each
+answered from the 3 best passages HomeDocs' own search found, on the i7-1165G7 with 4 threads:
+
+| Model (4-bit) | Right | Sentences the app could source | First word | Writing |
+|---|---|---|---|---|
+| **Qwen3-1.7B** | **20/20** | 95% | 4.5–4.8 s | 20–22 tokens/s |
+| Qwen2.5-1.5B | 17/20 | 100% | 4.4 s | 23 tokens/s |
+| Qwen3-0.6B | 17/20 | 89% | 2.1 s | 42 tokens/s |
+| Qwen2.5-0.5B | 13/20 | 100% | 2.2 s | 48 tokens/s |
+
+- **The small models** are twice as fast but get things wrong (a non-refundable fee called refundable, the
+  car policy's deductible given for the house).
+- **Citations:** asking the model to quote its source word for word failed (0–15% of quotes found in the
+  passage; Qwen2.5 ignores the instruction), and asking for `[n]` markers pointed at the wrong passage 25–50%
+  of the time. Plain answers whose sources the app finds afterwards were right as often and could be sourced
+  89–100% of the time, so that's the design.
+- **Runtime:** onnxruntime-genai (prebuilt, no compiling) ran the same model 25% slower to the first word
+  (5.6 s against 4.5 s) and got 19/20; llama.cpp is worth its packaging work.
+- **5 passages instead of 3** took 7.7 s to the first word with no better answers.
+- **The re-ranker's score** can rule out a question only when it's very low (below about −7): two answerable
+  questions scored −5.8 and −3.9, and the unanswerable ones −5.3 to −10.6.
+
+**Minimal dependencies.** Four Python libraries in all (PySide6-Essentials, numpy, onnxruntime, pypdfium2), plus
+llama.cpp itself, compiled from a pinned release and called through `ctypes`; everything else uses the
+standard library. Never a big library for one small feature.
 
 ## Not planned
 

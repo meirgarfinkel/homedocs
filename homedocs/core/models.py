@@ -5,7 +5,8 @@ where it stopped, is checked against its sha256, and only then gets its real nam
 name is always whole.
 
 Embedder and Reranker are the small interfaces search and indexing use (tests swap in fakes with the same
-methods): embed(texts) -> unit-length vectors; score(question, passages) -> a relevance score each.
+methods): embed(texts) -> unit-length vectors; score(question, passages) -> a relevance score each. The chat
+model is run by llm.py (load_chat() below).
 """
 
 import hashlib
@@ -81,6 +82,23 @@ RERANKER = Model(
     ),
 )
 MODELS = (EMBEDDER, RERANKER)
+
+# Qwen3-1.7B, 4-bit (Q4_K_M), as converted by Unsloth (Qwen publishes only an 8-bit file of the small Qwen3s).
+# Chosen by the test in REQUIREMENTS.md: the only model tried that got all 20 questions right.
+_QWEN3 = f"{HF}/unsloth/Qwen3-1.7B-GGUF/resolve/d7f544eead698dbd1f15126ef60b45a1e1933222"
+CHAT = Model(
+    "qwen3-1.7b-q4km",
+    "Qwen3-1.7B (Qwen), 4-bit",
+    "Apache 2.0",
+    (
+        ModelFile(
+            "model.gguf",
+            f"{_QWEN3}/Qwen3-1.7B-Q4_K_M.gguf",
+            "b139949c5bd74937ad8ed8c8cf3d9ffb1e99c866c823204dc42c0d91fa181897",
+            1107409472,
+        ),
+    ),
+)
 
 # bge-small wants questions (not passages) to start with this
 QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
@@ -228,3 +246,11 @@ class Reranker:
         pairs = [self.tok.encode_pair(question, p, RERANK_MAX_TOKENS) for p in passages]
         logits = self.session.run(None, _inputs([p[0] for p in pairs], [p[1] for p in pairs]))[0]
         return [float(x) for x in logits.ravel()]
+
+
+def load_chat(model: Model = CHAT):
+    """The chat model, loaded by llama.cpp (llm.LLMError if it can't be)."""
+    from .config import N_CTX
+    from .llm import LLM
+
+    return LLM(model.folder / model.files[0].name, N_CTX, threads(0.5))
