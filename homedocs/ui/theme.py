@@ -574,7 +574,7 @@ def brand_mark(px: int = 28, dpr: float = 2.0) -> QPixmap:
     p = QPainter(pm)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
     p.scale(dpr * px / 64, dpr * px / 64)
-    roof_colour, page_colour = QColor("#ECEFF2"), QColor("#DDCBB2")
+    roof_colour, page_colour = QColor("#F5F8FB"), QColor("#F2DFC4")
     p.setPen(Qt.PenStyle.NoPen)
     p.setBrush(QColor("#536E83"))
     p.drawEllipse(QRectF(0, 0, 64, 64))
