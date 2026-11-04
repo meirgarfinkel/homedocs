@@ -208,6 +208,7 @@ class MainWindow(QMainWindow):
         self.watcher.state.connect(self.status_pill.refresh)
         self.watcher.changed.connect(self.library_page.reload)
         self.watcher.changed.connect(self._vectors_changed)
+        self.watcher.state.connect(self._index_state)
         self.searcher = Searcher()
         self._asking = workers.Latest()
         self.models = ModelLoader(self.watcher.indexer, self.searcher, self)
@@ -220,6 +221,7 @@ class MainWindow(QMainWindow):
         self.library_page.folders_changed.connect(self._update_note)
         self._model_problem = None
         self._reloaded = 0.0
+        self._indexing = False
         self._reload_timer = QTimer(self)
         self._reload_timer.setSingleShot(True)
         self._reload_timer.timeout.connect(self._vectors_changed)
@@ -393,15 +395,24 @@ class MainWindow(QMainWindow):
 
     VECTOR_RELOAD_GAP = 20  # seconds: while passages are being embedded, search catches up this often
 
-    def _vectors_changed(self):
+    def _index_state(self, s):
+        if self._indexing and not s["running"]:
+            self._vectors_changed(done=True)  # the pass is over: search sees all of it now
+        self._indexing = s["running"]
+
+    def _vectors_changed(self, done=False):
         """Indexing changed what's embedded: reload the vectors for search, at most every VECTOR_RELOAD_GAP
-        seconds while it's busy (all of them are read each time), and once more when it's done."""
-        if not self.models.loaded or self._reload_timer.isActive():
+        seconds while it's busy (all of them are read each time), and right away when it's done."""
+        if not self.models.loaded:
             return
-        wait = self.VECTOR_RELOAD_GAP - (time.monotonic() - self._reloaded)
-        if wait > 0 and self.watcher.running():
-            self._reload_timer.start(int(wait * 1000))
-            return
+        if not done and self.watcher.running():
+            if self._reload_timer.isActive():
+                return
+            wait = self.VECTOR_RELOAD_GAP - (time.monotonic() - self._reloaded)
+            if wait > 0:
+                self._reload_timer.start(int(wait * 1000))
+                return
+        self._reload_timer.stop()
         self._reloaded = time.monotonic()
         workers.run(self.searcher.refresh, lambda _, err: err and print(f"vectors: {err!r}"))
 

@@ -67,6 +67,14 @@ def test_without_folders_the_note_offers_to_choose_one(hd, app):
         w.close()
 
 
+def indexed(hd) -> int:
+    db = hd.open_db()
+    try:
+        return db.execute("SELECT COUNT(*) FROM files WHERE status = 'indexed'").fetchone()[0]
+    finally:
+        db.close()
+
+
 def test_a_failed_download_offers_to_try_again(hd, app, folder, monkeypatch):
     from homedocs.core import models
     from homedocs.ui import models_ui
@@ -83,6 +91,7 @@ def test_a_failed_download_offers_to_try_again(hd, app, folder, monkeypatch):
         page = w.ask_page
         wait_until(app, lambda: page.note_button.text() == "Try again")
         assert "no connection" in page.note_text.text() and "exact words" in page.note_text.text()
+        wait_until(app, lambda: indexed(hd) == 2 and not w.watcher.running())  # (slow on Windows CI)
         w.ask("router password")  # keyword search still works
         wait_until(app, lambda: page.cards)
         assert page.cards[0].title.text() == "wifi.md" and "keyword only" in page.status.text()
