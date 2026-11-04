@@ -96,3 +96,21 @@ def test_a_database_from_0_1_0_gets_the_indexing_tables(hd, monkeypatch):
     db.execute("SELECT * FROM chunks_fts WHERE chunks_fts MATCH 'x'").fetchall()
     db.close()
     assert not (hd.data_dir() / "backups").exists()  # (nothing in it to back up)
+
+
+def test_a_database_from_0_2_0_keeps_its_passages_and_gains_vectors(hd, monkeypatch):
+    monkeypatch.setattr(dbmod, "_ready_dbs", set())
+    with sqlite3.connect(dbmod.db_file()) as raw:  # what 0.2.0 made: version 2, with a file read
+        for create in dbmod.V2_TABLES.values():
+            raw.execute(create)
+        raw.execute("INSERT INTO files (path, name, size, mtime, status) VALUES ('/a.txt', 'a.txt', 1, 1, 'indexed')")
+        raw.execute("INSERT INTO chunks (file_id, seq, char_start, char_end, text) VALUES (1, 0, 0, 5, 'hello')")
+        raw.execute("PRAGMA user_version = 2")
+    raw.close()
+    db = hd.open_db()
+    assert db.execute("PRAGMA user_version").fetchone()[0] == dbmod.VERSION
+    assert db.execute("SELECT text FROM chunks").fetchone()[0] == "hello"
+    assert dbmod.columns(db, "vectors") == ["chunk_id", "model", "vec"]
+    db.close()
+    (backup,) = (hd.data_dir() / "backups").iterdir()
+    assert backup.name.startswith("homedocs-v2-")

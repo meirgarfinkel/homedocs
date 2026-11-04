@@ -90,6 +90,8 @@ def describe(s: dict) -> str:
         return "Another HomeDocs window is reading your files."
     if not s["running"]:
         return ""
+    if s["phase"] == "embedding" and s["todo"]:
+        return f"Preparing search by meaning: {s['done']:,} of {s['todo']:,} passages"
     if s["phase"] == "reading" and s["todo"]:
         name = os.path.basename(s["file"]) if s.get("file") else ""
         return f"Reading files: {s['done']:,} of {s['todo']:,}" + (f" ({name})" if name else "")
@@ -128,7 +130,7 @@ class IndexStatus(QWidget):
         self.bar.setVisible(busy)
         self.stop.setVisible(busy)
         if busy:
-            if s["phase"] == "reading" and s.get("todo"):
+            if s["phase"] in ("reading", "embedding") and s.get("todo"):
                 self.bar.setRange(0, s["todo"])
                 self.bar.setValue(s["done"])
             else:

@@ -17,7 +17,6 @@ from PySide6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
-    QSizePolicy,
     QStackedLayout,
     QTableView,
     QToolButton,
@@ -30,6 +29,7 @@ from ...core.db import open_db
 from ...core.settings import folders
 from .. import theme, workers
 from ..desktop import open_file, show_in_folder
+from .common import ElidedLabel
 
 COLUMNS = ["Name", "Folder", "Type", "Passages", "Modified", "Status"]  # (the status, often long, last)
 NAME, FOLDER, KIND, PASSAGES, MODIFIED, STATUS = range(len(COLUMNS))
@@ -137,23 +137,6 @@ class _Filter(QSortFilterProxyModel):
         return not self.words or self.words in m.rows[row].path.lower()
 
 
-class _ElidedLabel(QLabel):
-    """One line that ends in "..." when there's no room, instead of widening the window."""
-
-    def __init__(self, text: str, parent=None):
-        super().__init__(parent)
-        self.full = text
-        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        self.setMinimumWidth(80)
-
-    def text(self) -> str:  # (the whole of it)
-        return self.full
-
-    def resizeEvent(self, e):  # noqa: N802 (Qt's name)
-        super().setText(self.fontMetrics().elidedText(self.full, Qt.TextElideMode.ElideMiddle, self.width()))
-        super().resizeEvent(e)
-
-
 class _FolderRow(QFrame):
     """A folder being searched: its path, how many files, and an × to stop searching it."""
 
@@ -167,7 +150,7 @@ class _FolderRow(QFrame):
         lay.setContentsMargins(12, 6, 6, 6)
         lay.setSpacing(10)
         self.icon = QLabel()
-        self.path = _ElidedLabel(folder)
+        self.path = ElidedLabel(folder)
         self.path.setObjectName("folderPath")
         self.path.setToolTip(folder)
         self.count = QLabel(f"{count:,} file{'s' if count != 1 else ''}")

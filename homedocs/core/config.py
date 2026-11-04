@@ -18,6 +18,18 @@ MIN_PASSAGE_WORDS = 150  # a full passage ends at the last paragraph's end past 
 MIN_SECTION_WORDS = 50  # a heading starts a new passage once the current one has at least this many
 MAX_PASSAGE_CHARS = 3000  # text without spaces (a long URL, a table dump) is cut at this length
 
+# Search: the best KEYWORD_CANDIDATES by keyword and VECTOR_CANDIDATES by meaning are merged (reciprocal rank
+# fusion, RRF_K), the best RERANK_CANDIDATES of those re-ranked, and SHOW_RESULTS shown. Re-ranking reads each
+# passage's first RERANK_MAX_TOKENS tokens: 20 passages that long take about 0.4 s on a 2021 laptop, where 30
+# full-length ones took 2.6 s. (Starting values: the eval set tunes them.)
+KEYWORD_CANDIDATES = 50
+VECTOR_CANDIDATES = 50
+RRF_K = 60
+RERANK_CANDIDATES = 20
+RERANK_MAX_TOKENS = 256
+SHOW_RESULTS = 8
+EMBED_BATCH = 8  # passages embedded at a time while indexing (stopping waits for one batch at most)
+
 RESCAN_GAP = 60  # seconds: coming back to the window looks for changed files at most this often
 
 

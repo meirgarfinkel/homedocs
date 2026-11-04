@@ -89,8 +89,8 @@ library for one small feature: then a focused one is found, or it's written here
 | Library | Why it's needed |
 |---|---|
 | PySide6-Essentials | the window |
-| numpy | the vector matrix and model inputs |
-| onnxruntime | runs the embedder and reranker |
+| numpy | the vector matrix and model inputs (2.4: the last for Python 3.11) |
+| onnxruntime | runs the embedder and reranker (its helpers protobuf, flatbuffers and packaging install with it but aren't imported, so they're not in the app) |
 | llama-cpp-python | runs the chat model |
 | pypdfium2 | reads PDF text and pages (no dependencies of its own) |
 
@@ -107,10 +107,21 @@ huggingface-hub and an HTTP stack), downloads (`urllib`), keyword search (SQLite
 | Reranker | ONNX Runtime + `tokenizer.py` | `search.py` |
 | Chat | llama.cpp through llama-cpp-python, GGUF 4-bit | `answer.py` |
 
-`models.py` has one entry per model: URL, sha256, size and licence. The embedder and reranker load at start
-(small and quick); the chat model loads on the first question and stays loaded. All three sit behind small
-interfaces (`embed(texts)`, `rerank(query, passages)`, `generate(prompt) -> token stream`) so the tests swap in
-fakes.
+`models.py` has one entry per model: its files, each with a URL pinned to an exact Hugging Face revision,
+sha256, size, and the licence. Both search models use the same vocabulary, so one tokenizer serves both;
+`tests/test_tokenizer.py` checks it against ids from Hugging Face's `tokenizers`.
+
+- **Embedder:** bge-small-en-v1.5, full precision (133 MB). Questions get bge's query prefix; passages are
+  embedded as `file name > headings` then the text, and the [CLS] output is normalized.
+- **Re-ranker:** ms-marco-MiniLM-L6-v2, the 8-bit version (23 MB): about 40% faster than full precision, which
+  re-ranking needs (see the speed budget in REQUIREMENTS.md). It reads each passage's first
+  `RERANK_MAX_TOKENS`.
+- Whether full precision and these sizes are right is for the eval set (milestone 5) to say.
+
+The embedder and reranker load at start (once downloaded); the chat model loads on the first question and stays
+loaded. They sit behind small interfaces (`embed(texts)`, `score(question, passages)`,
+`generate(prompt) -> token stream`) so the tests swap in fakes (`tests/fakes.py`). Indexing and search share one
+embedder; ONNX Runtime sessions are safe to use from several threads.
 
 ## What happens, step by step
 
@@ -118,10 +129,11 @@ fakes.
 
 1. No folders in `settings.json`: the window opens on the Library page, which shows one "Choose a folder"
    button.
-2. `models.py` downloads the three models (with `urllib`) on their own thread (`workers.run_apart`), each to a `.part` file
-   that resumes if interrupted, then checks its sha256 and renames it into place. A bad hash deletes it and
-   tries again.
-3. Indexing starts. The Ask page works on whatever's indexed so far.
+2. `ui/models_ui.py` downloads the search models (155 MB, with `urllib`) on their own thread
+   (`workers.run_apart`), each file to a `.part` file that resumes if interrupted, then checks its sha256 and
+   renames it into place. A bad hash deletes it; no connection shows a note on the Ask page with "Try again".
+   Until they're in, search is by keyword. (The `--self-test` never downloads.)
+3. Indexing starts, then embedding. The Ask page works on whatever's indexed so far.
 
 ### Indexing
 
@@ -170,18 +182,25 @@ The Library page reads `files` for its table (`library.files()`), on a worker th
 
 ### Asking: search
 
-`core/search.py`, on a worker thread (`workers.Latest`, so only the newest question counts):
+`core/search.py` (`Searcher.search`), on a worker thread (`workers.Latest`, so only the newest question counts):
 
-1. Embed the question.
-2. **Keyword:** FTS5 `MATCH` on the question's words (cleaned so punctuation can't break the query), top 50 by
-   bm25.
-3. **Vector:** the question's vector against the matrix, top 50.
-4. **Fuse:** reciprocal rank fusion (`1 / (k + rank)`, summed across both lists) keeps the best ~30.
-5. **Rerank:** the cross-encoder scores each (question, passage) pair; the best 4–5 are kept.
-6. **Feedback:** each passage's boost from `feedback.py` is added, capped (`BOOST_CAP` in `config.py`), and
-   the list re-sorted.
+1. **Keyword:** FTS5 `MATCH` on any of the question's words but the common ones ("what", "is", "the"...: see
+   `store.COMMON`), each quoted so punctuation can't break the query; the best `KEYWORD_CANDIDATES` by BM25.
+2. **Meaning:** the question's vector against the matrix (`store.VectorIndex`, reloaded after indexing changes
+   the vectors); the best `VECTOR_CANDIDATES`.
+3. **Merge:** reciprocal rank fusion (`1 / (RRF_K + place)`, summed across both lists).
+4. **Re-rank:** the re-ranker scores the best `RERANK_CANDIDATES`; its order is final.
+5. Identical passages (the same file in two places) are shown once; the best `SHOW_RESULTS` are kept, with where
+   the question's words are in each (FTS5's `highlight()`, so "renewing" marks "renew").
+6. **Feedback** (milestone 5): each passage's boost from `feedback.py` is added, capped (`BOOST_CAP`).
 
-The passages appear on the Ask page right away, before any answer.
+Without the models it's keyword search alone. Search by meaning always returns its nearest passages, even for
+a question nothing answers; telling "not in your files" is the answer step's job (milestone 3), from the
+re-ranker's scores.
+
+The Ask page (`ui/views/ask.py`) shows each passage's file, page or headings, and a snippet from the sentence
+with the first highlighted word. Clicking one shows it whole in the Info panel (`ui/views/passage_panel.py`),
+with "Open file" and "Show in folder".
 
 ### Asking: the answer
 

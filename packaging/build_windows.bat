@@ -17,6 +17,11 @@ build\env\Scripts\python -m pip install --quiet -r requirements.txt pyinstaller 
 echo 2/4  Bundling HomeDocs with PyInstaller...
 if exist build\dist rmdir /s /q build\dist
 build\env\Scripts\pyinstaller --noconfirm --clean --log-level ERROR --distpath build\dist --workpath build\work packaging\homedocs.spec || goto fail
+rem ONNX Runtime needs Microsoft's C++ runtime, which not every PC has (GitHub's build machines always do, so
+rem the self-test can't catch it): the app must carry it
+for %%D in (msvcp140.dll msvcp140_1.dll vcruntime140.dll vcruntime140_1.dll) do (
+  dir /s /b build\dist\HomeDocs\%%D >nul 2>nul || (echo %%D isn't in the bundle: ONNX Runtime won't start on PCs without it. & goto fail)
+)
 
 echo 3/4  Checking that the bundled app starts...
 rem (with a data folder of its own, so it never touches yours; models put in build\selftest\models
