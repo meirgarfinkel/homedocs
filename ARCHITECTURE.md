@@ -12,7 +12,7 @@ the same is described in HomePix's own docs; this page covers what HomeDocs adds
 ```
 homedocs/
   core/   everything HomeDocs does, with no user interface: reading files, splitting them into passages,
-          the database, search, answers and citations, feedback, evals, models. Plain Python; never imports ui.
+          the database, search, answers and citations, evals, models. Plain Python; never imports ui.
   ui/     the desktop app (PySide6/Qt), built on core: the window, its pages and panels.
 ```
 
@@ -21,7 +21,7 @@ the rules (what a passage is, how results are ranked, whether a sentence counts 
 
 | core file | What it does |
 |---|---|
-| `config.py` | tunable constants (passage size, overlap, candidate counts, boost cap, fuzzy threshold) and `data_dir()` |
+| `config.py` | tunable constants (passage size, overlap, candidate counts, fuzzy threshold) and `data_dir()` |
 | `settings.py` | `settings.json`: folders, theme, chosen models |
 | `db.py` | the schema (`TABLES`), versioned upgrades, backups |
 | `parsers.py` | one function per file type: returns the text, where each page starts, and the headings |
@@ -30,12 +30,11 @@ the rules (what a passage is, how results are ranked, whether a sentence counts 
 | `indexer.py` | finds new, changed, moved and removed files, reads and saves them; runs passes in the background |
 | `library.py` | the folders being searched (add, remove) and the file list the Library page shows |
 | `store.py` | saving and removing passages with their keyword index rows; the passage queries; the vector matrix |
-| `search.py` | keyword + vector search, fusion, reranking, feedback boosts |
+| `search.py` | keyword + vector search, fusion, reranking |
 | `answer.py` | decides whether to ask the model, builds the prompt, streams the answer, finds each sentence's source |
 | `llm.py` | our bindings to llama.cpp (`ctypes`): load a model, read a prompt, stream tokens, stop |
-| `feedback.py` | records thumbs and clicks, works out boosts, turns thumbs-up into eval cases |
 | `models.py` | downloads models (resumable, sha256-checked) and loads them |
-| `evals.py` | runs the eval set and reports recall@k and MRR |
+| `evals.py` | runs the eval set, scoring each step of the pipeline and the answers |
 | `updates.py` | the GitHub release check (from HomePix) |
 
 ## Where things are kept
@@ -45,7 +44,7 @@ on Windows, `~/Library/Application Support/homedocs` on Mac, or `$HOMEDOCS_HOME`
 
 | | |
 |---|---|
-| `homedocs.db` | the database (SQLite): files, passages, the keyword index, vectors, questions and feedback |
+| `homedocs.db` | the database (SQLite): files, passages, the keyword index, vectors and questions |
 | `models/` | the three models, downloaded once and checked by sha256 |
 | `settings.json` | the folders to search and the user's choices |
 | `window.ini` | window size and layout |
@@ -71,7 +70,6 @@ on Windows, `~/Library/Application Support/homedocs` on Mac, or `$HOMEDOCS_HOME`
   re-embeds instead of mixing vectors)
 - `questions` (milestone 3): each question asked, when, the answer text, and each sentence's source (passage
   and where in it), so a recent question reopens without asking the model again
-- `feedback` (milestone 5): question, passage, kind (`up`, `down`, `click`) and when
 
 A schema change bumps `VERSION` and adds an upgrade step to `UPGRADES`. Every upgrade backs the database up
 first and runs in one transaction, so a failed one leaves it untouched. A database from a newer version is
@@ -195,7 +193,6 @@ The Library page reads `files` for its table (`library.files()`), on a worker th
 4. **Re-rank:** the re-ranker scores the best `RERANK_CANDIDATES`; its order is final.
 5. Identical passages (the same file in two places) are shown once; the best `SHOW_RESULTS` are kept, with where
    the question's words are in each (FTS5's `highlight()`, so "renewing" marks "renew").
-6. **Feedback** (milestone 5): each passage's boost from `feedback.py` is added, capped (`BOOST_CAP`).
 
 Without the models it's keyword search alone. Search by meaning always returns its nearest passages, even for
 a question nothing answers; telling "not in your files" is the answer step's job (milestone 3), from the
@@ -234,26 +231,50 @@ with "Open file" and "Show in folder".
 ### Sources and the Info panel
 
 Clicking `[n]` shows the passage in the Info panel (the right dock, from HomePix), with the supporting
-sentence highlighted, the file name and page, and "Open file" (`QDesktopServices.openUrl`). The click is
-recorded as feedback.
+sentence highlighted, the file name and page, and "Open file" (`QDesktopServices.openUrl`).
 
-### Feedback
+### Evals and tuning
 
-`core/feedback.py`:
+`core/evals.py` measures how accurate HomeDocs is and where it loses questions. It's a development tool: the
+eval set and its documents are never in the app.
 
-1. Thumbs up or down under an answer records a row per cited passage; a source click records `click`.
-2. **Boosts:** a passage's boost comes from its ups, downs and clicks, smoothed so one vote doesn't swing it
-   and capped so feedback can nudge the reranker's order but not override it.
-3. **Eval cases:** a thumbs-up turns (question, cited passages) into an eval case. "Forget all feedback" clears
-   both.
+**The documents** (`tests/evals/`):
+- Public-domain US government publications (IRS guides, Medicare's handbook, a federal employee health-plan
+  brochure and the like): long, many pages, tables. Too big for git, so `sources.json` pins each one by URL
+  and sha256; the eval downloads them once into `build/evals/` and checks them, as the app does its models.
+  Prior-year URLs are used where a publisher replaces its files each year.
+- Household documents written for it (a lease, car and home insurance, a health plan, appliance manuals, an
+  employee handbook), made into multi-page PDFs with tables and fine print by a script from text kept in
+  git (as `tests/samples.py` makes the test PDFs), so look-alike facts across files are there on purpose.
 
-### Evals
+**The questions** (`tests/evals/questions.jsonl`, about 100): each has a type (one fact, table, two passages,
+two documents, across a page break, reworded, calculation, not in the files), the passages it needs (file and a
+short quote each), the facts a right answer states (patterns), and whether it's for tuning or held back
+(`"held_back": true`, about 30%).
 
-`core/evals.py` loads the seed set (`tests/evals/seed.jsonl`, questions over the sample corpus in
-`tests/evals/corpus/`) plus any feedback cases, runs each question through search in four modes (vector only,
-keyword only, hybrid, hybrid + reranker), and reports recall@5 and MRR per mode. A pytest marker runs it on the
-seed set with the real models; ordinary CI runs it with the fakes to check the plumbing. The real numbers are
-copied into the README by hand when they change.
+**A run** indexes the documents into a fresh data folder with the real indexer, then for each question:
+
+1. **Split:** is each needed quote whole inside one passage?
+2. **Search:** is every needed passage among search's `RERANK_CANDIDATES`?
+3. **Pick:** after re-ranking, is every needed passage among the `ANSWER_PASSAGES` the model reads?
+4. **Answer:** the chat model answers; it's right if it states every fact (or says "Not in your files" when
+   it should).
+
+A failed question is blamed on the first step that lost it. The report gives, per step and per question type,
+how many were lost, plus "Not in your files" accuracy, the share of sentences with a source, sentences sourced
+from the wrong file, and the median and slowest time to the first word. `--search` stops after step 3 (seconds,
+no chat model), to try search settings quickly; `--held-back` runs the held-back questions instead of the
+tuning ones; `--only TYPE` runs one type.
+
+**Tuning** changes one setting at a time (`core/config.py` holds them all: passage size and overlap,
+candidates, how keyword and meaning results are combined, passages the model reads and their length, the "Not in
+your files" cutoff, the source check's strictness) and keeps it only if the tuning score improves and the first
+word still comes within 5 s. The step losing the most questions goes first. New settings that a step needs
+(keeping tables whole, not splitting at page breaks, giving the model the passage beside a match) are added
+the same way: measured, kept only if they help. Each kept change's before and after go in the PR.
+
+The held-back questions are run once tuning is done; those numbers go in the README with the date and computer.
+Ordinary CI runs the eval with the fake models on a few questions, to check the plumbing.
 
 ## Threads
 
@@ -305,7 +326,7 @@ bindings against a tiny model when llama.cpp is built, and is skipped otherwise.
 
 | To change... | Look in |
 |---|---|
-| passage size, overlap, candidate counts, boost cap, how many passages the model reads, when a sentence counts as supported | `core/config.py` |
+| passage size, overlap, candidate counts, how many passages the model reads, when a sentence counts as supported | `core/config.py` |
 | which file types are read, or how | `core/parsers.py` |
 | how files are found, skipped or split | `core/indexer.py` |
 | what's stored | `core/db.py` (`TABLES`, then an upgrade step) |
@@ -313,8 +334,7 @@ bindings against a tiny model when llama.cpp is built, and is skipped otherwise.
 | the prompt, or how sources are found | `core/answer.py` |
 | the llama.cpp calls | `core/llm.py`, `native/hd_llama.c` |
 | which models are used, their URLs and hashes | `core/models.py` |
-| how feedback changes ranking | `core/feedback.py` |
-| the eval set or the metrics | `tests/evals/`, `core/evals.py` |
+| the eval set, its documents, or what it measures | `tests/evals/`, `core/evals.py` |
 | colours, font, icons | `ui/theme.py` |
 | a page or panel of the window | `ui/views/` |
 | streaming and cancelling background work | `ui/workers.py` |
