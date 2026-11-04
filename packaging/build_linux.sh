@@ -33,7 +33,7 @@ fi
 mkdir -p "$BUILD"
 cd "$BUILD"
 
-echo "1/4  Setting up a clean Python environment for building..."
+echo "1/5  Setting up a clean Python environment for building..."
 # Made afresh when requirements.txt changes, so nothing left over from older versions gets bundled.
 STAMP="$(sha256sum "$ROOT/requirements.txt" | cut -c1-16)"
 if [ "$(cat "$ENV/.requirements" 2>/dev/null)" != "$STAMP" ]; then
@@ -46,7 +46,11 @@ fi
 "$ENV/bin/python" -m pip install --quiet -r "$ROOT/requirements.txt" pyinstaller
 echo "$STAMP" > "$ENV/.requirements"
 
-echo "2/4  Bundling HomeDocs with PyInstaller..."
+echo "2/5  Building llama.cpp (a few minutes the first time)..."
+bash "$HERE/build_llama.sh" "$BUILD/llama" | tail -n +2 | tr '\n' ' '
+echo
+
+echo "3/5  Bundling HomeDocs with PyInstaller..."
 rm -rf "$BUILD/dist" "$BUILD/work"
 "$ENV/bin/pyinstaller" --noconfirm --clean --log-level ERROR \
   --distpath "$BUILD/dist" --workpath "$BUILD/work" "$HERE/homedocs.spec"
@@ -63,7 +67,7 @@ if [ -n "${GLIBC_MAX:-}" ]; then  # set by the release build: nothing may need a
   echo "     glibc needed: $need (limit $GLIBC_MAX)"
 fi
 
-echo "3/4  Arranging the AppImage folder..."
+echo "4/5  Arranging the AppImage folder..."
 APPDIR="$BUILD/HomeDocs.AppDir"
 rm -rf "$APPDIR"
 mkdir -p "$APPDIR/usr/lib"
@@ -87,7 +91,7 @@ exec "$HERE/usr/lib/HomeDocs/HomeDocs" "$@"
 EOF
 chmod +x "$APPDIR/AppRun"
 
-echo "4/4  Packing it into a single AppImage file..."
+echo "5/5  Packing it into a single AppImage file..."
 fetch() {  # url sha256 dest: download once, check it, keep it
   if [ ! -f "$3" ]; then
     curl -fsSL -o "$3.part" "$1"

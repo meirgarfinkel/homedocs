@@ -286,15 +286,18 @@ bindings against a tiny model when llama.cpp is built, and is skipped otherwise.
 
 ## Packaging (what differs from HomePix)
 
-- **llama.cpp is the main risk.** It's built from a pinned release by `packaging/build_llama.sh` (and a `.bat`
+- **llama.cpp** was the main risk. It's built from a pinned release by `packaging/build_llama.sh` (and a `.bat`
   for Windows) together with `native/hd_llama.c`: inside the AlmaLinux 9 container for Linux (so it passes the
   glibc 2.34 check), with runtime CPU feature detection (`GGML_NATIVE=OFF`, `GGML_CPU_ALL_VARIANTS`, backends
-  loaded dynamically) so the same bundle runs on CPUs with and without AVX2. Windows and Mac build it the same
-  way in their CI jobs. The libraries go next to the app; `llm.py` finds them there (or in `build/llama` when
-  running from source).
-- **`--self-test`** loads a tiny GGUF model and generates a few tokens, loads both ONNX models and embeds and
-  reranks one sentence, then opens the window and grabs it. The tiny test models are cached in `build.yml`
-  (keyed on their sha256) so builds don't download them every time; the real models are never bundled.
+  loaded dynamically) so the same bundle runs on CPUs with and without AVX2. Windows builds it with clang in
+  Visual Studio's environment (as llama.cpp's own Windows release does: its CPU code is faster than MSVC's),
+  and the Mac for Apple Silicon (ARMv8.2 with dot product, which every M chip has). Each app build runs it
+  first; `homedocs.spec` puts the libraries in the bundle's `llama` folder, where `llm.py` finds them (or in
+  `build/llama` when running from source).
+- **`--self-test`** loads llama.cpp (and fails if none of its CPU backends load) and writes a few words with
+  `tests/fixtures/stories260K.gguf`, a 1 MB story model (MIT) that the builds and the distro smoke tests put in
+  the data folder as `models/selftest.gguf`. It loads both ONNX models and embeds and reranks one sentence when
+  they're in the data folder too, then opens the window and grabs it. The real models are never bundled.
 - **Removed from HomePix:** the file-change journal (HomeDocs never changes files), ExifTool, OpenCV, HEIC
   support and photo MimeTypes.
 

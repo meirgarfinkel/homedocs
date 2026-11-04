@@ -58,6 +58,7 @@ def _library():
         i32s = ctypes.POINTER(ctypes.c_int32)
         for name, args, res in (
             ("hd_init", [ctypes.c_char_p, i], None),
+            ("hd_devices", [], i),
             ("hd_load", [ctypes.c_char_p, i, i, i], p),
             ("hd_free", [p], None),
             ("hd_n_ctx", [p], i),
@@ -73,6 +74,8 @@ def _library():
             fn = getattr(lib, name)
             fn.argtypes, fn.restype = args, res
         lib.hd_init(str(folder).encode(), 0)
+        if lib.hd_devices() < 1:
+            raise LLMError(f"none of llama.cpp's CPU backends in {folder} could be loaded")
         _lib = lib
         return lib
 

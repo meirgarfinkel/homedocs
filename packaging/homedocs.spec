@@ -22,14 +22,27 @@ excludes = [
 
 datas = [(str(ROOT / "homedocs-icon.png"), "."), (str(ROOT / "homedocs/ui/fonts"), "homedocs/ui/fonts")]
 
+# llama.cpp, built by build_llama.sh (.bat) just before: its libraries go in the bundle's llama folder, where
+# core/llm.py looks for them
+LLAMA = Path(os.environ.get("HOMEDOCS_BUILD", ROOT / "build")) / "llama"
+if not any(LLAMA.glob("*hd_llama*")):
+    raise SystemExit(f"homedocs.spec: llama.cpp isn't built in {LLAMA} (packaging/build_llama.sh or .bat)")
+binaries = [(str(f), "llama") for f in sorted(LLAMA.iterdir())]
+
 a = Analysis(
     [str(ROOT / "homedocs_app.py")],
     pathex=[str(ROOT)],
+    binaries=binaries,
     datas=datas,
     hiddenimports=["PySide6.QtNetwork"],
     excludes=excludes,
     noarchive=False,
 )
+
+# PyInstaller also copies the llama.cpp libraries hd_llama links against to the top folder; only the ones in
+# llama/ are used (each loads the others from its own folder)
+_llama_names = {f.name for f in LLAMA.iterdir()}
+a.binaries = [b for b in a.binaries if "/" in b[0].replace("\\", "/") or b[0] not in _llama_names]
 
 # Qt plugins the app doesn't use (it draws its own widgets).
 SKIP_PLUGINS = {"qmltooling", "printsupport", "sqldrivers", "generic", "networkinformation", "tls"}

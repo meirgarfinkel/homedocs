@@ -9,12 +9,15 @@ rem Python 3.12 if it's there (the model libraries may not support the newest Py
 set "PY=python"
 py -3.12 -c "" >nul 2>nul && set "PY=py -3.12"
 
-echo 1/4  Setting up a clean Python environment for building...
+echo 1/5  Setting up a clean Python environment for building...
 if not exist build\env\Scripts\python.exe %PY% -m venv build\env || goto fail
 build\env\Scripts\python -m pip install --quiet --upgrade pip || goto fail
 build\env\Scripts\python -m pip install --quiet -r requirements.txt pyinstaller || goto fail
 
-echo 2/4  Bundling HomeDocs with PyInstaller...
+echo 2/5  Building llama.cpp (a few minutes the first time)...
+call packaging\build_llama.bat build\llama >build\llama.log 2>&1 || (type build\llama.log & goto fail)
+
+echo 3/5  Bundling HomeDocs with PyInstaller...
 if exist build\dist rmdir /s /q build\dist
 build\env\Scripts\pyinstaller --noconfirm --clean --log-level ERROR --distpath build\dist --workpath build\work packaging\homedocs.spec || goto fail
 rem ONNX Runtime needs Microsoft's C++ runtime, which not every PC has (GitHub's build machines always do, so
@@ -23,9 +26,11 @@ for %%D in (msvcp140.dll msvcp140_1.dll vcruntime140.dll vcruntime140_1.dll) do 
   dir /s /b build\dist\HomeDocs\%%D >nul 2>nul || (echo %%D isn't in the bundle: ONNX Runtime won't start on PCs without it. & goto fail)
 )
 
-echo 3/4  Checking that the bundled app starts...
+echo 4/5  Checking that the bundled app starts...
 rem (with a data folder of its own, so it never touches yours; models put in build\selftest\models
-rem are checked too)
+rem are checked too. The tiny test model checks llama.cpp writes.)
+if not exist build\selftest\models mkdir build\selftest\models
+copy /y tests\fixtures\stories260K.gguf build\selftest\models\selftest.gguf >nul || goto fail
 if exist build\selftest\app.log del build\selftest\app.log
 set "HOMEDOCS_HOME=%CD%\build\selftest"
 start /wait "" build\dist\HomeDocs\HomeDocs.exe --self-test
@@ -38,7 +43,7 @@ if errorlevel 1 (
 set "HOMEDOCS_HOME="
 type build\selftest\app.log
 
-echo 4/4  Making the installer...
+echo 5/5  Making the installer...
 set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
 if not exist "%ISCC%" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
 if not exist "%ISCC%" (

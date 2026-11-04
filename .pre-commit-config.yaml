@@ -29,3 +29,4 @@ repos:
       - id: check-merge-conflict
       - id: check-added-large-files  # keeps AppImages, models and photos out of git
         args: ["--maxkb=1024"]
+        exclude: ^tests/fixtures/stories260K\.gguf$  # (the one model kept: 1.2 MB, for the self-test)
