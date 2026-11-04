@@ -19,7 +19,7 @@ fi
 mkdir -p "$BUILD"
 cd "$BUILD"
 
-echo "1/4  Setting up a clean Python environment for building..."
+echo "1/5  Setting up a clean Python environment for building..."
 STAMP="$(shasum -a 256 "$ROOT/requirements.txt" | cut -c1-16)"
 if [ "$(cat "$ENV/.requirements" 2>/dev/null)" != "$STAMP" ]; then
   rm -rf "$ENV"
@@ -31,7 +31,11 @@ fi
 "$ENV/bin/python" -m pip install --quiet -r "$ROOT/requirements.txt" pyinstaller
 echo "$STAMP" > "$ENV/.requirements"
 
-echo "2/4  Bundling HomeDocs with PyInstaller..."
+echo "2/5  Building llama.cpp (a few minutes the first time)..."
+bash "$HERE/build_llama.sh" "$BUILD/llama" | tail -n +2 | tr '\n' ' '
+echo
+
+echo "3/5  Bundling HomeDocs with PyInstaller..."
 rm -rf "$BUILD/dist" "$BUILD/work"
 "$ENV/bin/pyinstaller" --noconfirm --clean --log-level ERROR \
   --distpath "$BUILD/dist" --workpath "$BUILD/work" "$HERE/homedocs.spec"
@@ -39,10 +43,11 @@ APP="$BUILD/dist/HomeDocs.app"
 # one consistent ad hoc signature over the whole app (Apple Silicon runs nothing unsigned)
 codesign --force --deep --sign - "$APP"
 
-echo "3/4  Checking that the bundled app starts..."
+echo "4/5  Checking that the bundled app starts..."
 # (with a data folder of its own, so it never touches yours; models put in build/selftest/models
-# are checked too)
-mkdir -p "$BUILD/selftest"
+# are checked too. The tiny test model checks llama.cpp writes.)
+mkdir -p "$BUILD/selftest/models"
+cp "$ROOT/tests/fixtures/stories260K.gguf" "$BUILD/selftest/models/selftest.gguf"
 rm -f "$BUILD/selftest/app.log"
 if ! HOMEDOCS_HOME="$BUILD/selftest" "$APP/Contents/MacOS/HomeDocs" --self-test; then
   cat "$BUILD/selftest/app.log" 2>/dev/null || true
@@ -51,7 +56,7 @@ if ! HOMEDOCS_HOME="$BUILD/selftest" "$APP/Contents/MacOS/HomeDocs" --self-test;
 fi
 cat "$BUILD/selftest/app.log" 2>/dev/null || true
 
-echo "4/4  Making the disk image..."
+echo "5/5  Making the disk image..."
 STAGE="$BUILD/dmg"
 rm -rf "$STAGE"
 mkdir -p "$STAGE"

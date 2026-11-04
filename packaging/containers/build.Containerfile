@@ -6,6 +6,9 @@ RUN dnf -y install epel-release \
  && dnf -y install --setopt=install_weak_deps=False \
       python3.11 python3.11-pip \
       findutils file which binutils \
+      # llama.cpp is compiled here too. gcc-toolset-13: AlmaLinux's own assembler is too old for the newest
+      # CPUs' instructions, and what the toolset builds still needs only AlmaLinux 9's C++ runtime
+      gcc-toolset-13-gcc-c++ gcc-toolset-13-binutils cmake git \
       # Qt's window system plugin needs these; bundling them saves people installing them
       xcb-util-cursor xcb-util-wm xcb-util-image xcb-util-keysyms xcb-util-renderutil \
       libxkbcommon-x11 libxkbcommon fontconfig freetype \
@@ -16,3 +19,4 @@ RUN dnf -y install epel-release \
 
 # appimagetool runs from a temporary folder without FUSE inside the container
 ENV APPIMAGE_EXTRACT_AND_RUN=1 PYTHON=python3.11 GLIBC_MAX=2.34
+ENV PATH=/opt/rh/gcc-toolset-13/root/usr/bin:$PATH

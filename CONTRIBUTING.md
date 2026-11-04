@@ -36,9 +36,11 @@ and fetches CMake if it's missing) with
 bash packaging/build_llama.sh          # into build/llama, where the app looks when run from source
 ```
 
-Without it the app works as before and shows passages without an answer. The tests use a fake chat model either
-way; `tests/test_llm.py` runs our bindings against a real one when you point it at a small GGUF file:
-`HOMEDOCS_TEST_GGUF=/path/to/Qwen3-0.6B-Q4_K_M.gguf`.
+Without it the app works as before and shows passages without an answer. The app's tests use a fake chat model
+either way. Once it's built, `tests/test_llm.py` runs our bindings against the 1 MB story model in
+`tests/fixtures`, and against a real chat model too when you point it at a small GGUF file:
+`HOMEDOCS_TEST_GGUF=/path/to/Qwen3-0.6B-Q4_K_M.gguf`. The app builds run `build_llama.sh` (`.bat` on Windows)
+themselves.
 
 ## Dependencies
 

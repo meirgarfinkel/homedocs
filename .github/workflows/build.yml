@@ -5,6 +5,8 @@
 #   checks for merging into main), so a change that breaks some distro shows up before it's merged.
 # - Windows: the installer, built the same way on Windows; its self-test runs too.
 # - Mac: HomeDocs.dmg, built on an Apple Silicon Mac; its self-test runs too.
+# Each build compiles llama.cpp first, on that system (in the container for Linux), and every self-test writes
+# a few words with it, using the tiny model in tests/fixtures.
 #
 # Releasing is automatic: when a merge into main has a version (homedocs/__init__.py) with no Release
 # yet, all of it is built again from main and published as a GitHub Release tagged v<version>. Merges

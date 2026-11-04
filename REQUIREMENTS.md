@@ -119,14 +119,15 @@ Measured on a 2021 laptop (Intel i7-1165G7, 4 cores) where there's a measurement
 Not tried yet: sending only the sentences around the matching words instead of whole passages (a shorter prompt
 starts sooner, but may leave out what the answer needs; the evals would have to show it doesn't).
 
-## Models (downloaded on first run; final pick in milestone 4)
+## Models (downloaded on first run)
 
-Candidates, to be compared on the eval set before pinning. Each licence must allow use and redistribution.
+Pinned to exact files (by sha256, in `core/models.py`). Each licence allows use and redistribution. About
+1.3 GB in all.
 
-| Role | Candidates | Size | Runtime |
+| Role | Model | Size | Runtime |
 |---|---|---|---|
-| Embeddings | bge-small-en-v1.5 (MIT); all-MiniLM-L6-v2 as the fast fallback | ~30–130 MB | ONNX Runtime |
-| Reranker | ms-marco-MiniLM-L-6-v2 cross-encoder (Apache 2.0), 8-bit; L-4 if it's too slow | ~25–90 MB | ONNX Runtime |
+| Embeddings | bge-small-en-v1.5 (MIT) | 133 MB | ONNX Runtime |
+| Reranker | ms-marco-MiniLM-L-6-v2 cross-encoder (Apache 2.0), 8-bit | 23 MB | ONNX Runtime |
 | Chat | Qwen3-1.7B (Apache 2.0), thinking off, Q4_K_M GGUF | 1.1 GB | llama.cpp, through our own small bindings |
 
 No PyTorch anywhere: ONNX and llama.cpp keep the bundle small and fast on CPU.

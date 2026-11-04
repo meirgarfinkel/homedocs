@@ -7,8 +7,14 @@ This turns HomeDocs into something you can hand to anyone:
 - **Windows:** `HomeDocsSetup.exe`, a normal installer with Start menu and desktop shortcuts.
 - **Mac:** `HomeDocs.dmg`, a disk image holding `HomeDocs.app` to drag into Applications.
 
-Each contains its own copy of Python and every library, so the people you give them to install nothing else.
-The models are never bundled: they download once, on first run.
+Each contains its own copy of Python and every library, llama.cpp included, so the people you give them to
+install nothing else. The models are never bundled: they download once, on first run.
+
+Every build compiles llama.cpp first (`packaging/build_llama.sh`, or `build_llama.bat` on Windows), from the
+release pinned in `build_llama.sh`, together with `native/hd_llama.c`. It takes a few minutes the first time
+and seconds after. Its CPU code is built once per CPU generation and the best one is picked when the app
+starts, so one bundle runs on old and new processors alike. Each build's self-test then writes a few words with
+the 1 MB story model in `tests/fixtures`, which shows llama.cpp loads and runs on that system.
 
 A bundle can only be built on the system it's for: the AppImage on Linux, the installer on Windows, the disk
 image on a Mac. If you don't have a Windows PC or a Mac, GitHub builds them all for you (see *Let GitHub build
@@ -47,7 +53,7 @@ The AppImage runs on the Linux it was built on and on newer ones. Release builds
    GitHub runs this on six distros for every pull request (see below).
 
 **Quicker builds while trying things:** `bash packaging/build_linux.sh` builds directly on your computer,
-without a container (it needs `sudo apt install python3-venv libxcb-cursor0`). That AppImage may not run on
+without a container (it needs `sudo apt install python3-venv libxcb-cursor0 build-essential git`). That AppImage may not run on
 systems older than yours.
 
 **What's left to the computer it runs on:** graphics libraries (they must match its drivers), fonts, sound,
@@ -68,11 +74,14 @@ system: `bash packaging/smoke_test.sh ubuntu:24.04 HomeDocs.deb`.
 1. **Install Python 3.11 or 3.12** from [python.org](https://www.python.org/downloads/). In the installer, tick
    **Add python.exe to PATH**.
 2. **Install Inno Setup 6** from [jrsoftware.org](https://jrsoftware.org/isinfo.php).
-3. **Open the `homedocs` folder** in File Explorer, type `cmd` in the address bar and press Enter.
-4. **Build:** `packaging\build_windows.bat`. It sets up Python, bundles the app, runs a quick self-test (with a
+3. **Install Visual Studio** (the free Community edition) with **Desktop development with C++**, and
+   [Git](https://git-scm.com/download/win), to compile llama.cpp. Tick **C++ Clang tools for Windows** in
+   that workload too: llama.cpp writes answers faster built with clang (without it, MSVC is used).
+4. **Open the `homedocs` folder** in File Explorer, type `cmd` in the address bar and press Enter.
+5. **Build:** `packaging\build_windows.bat`. It sets up Python, compiles llama.cpp, bundles the app, runs a quick self-test (with a
    data folder of its own, `build\selftest`, never yours) and makes the installer. It finishes with
    `Done: HomeDocsSetup.exe`.
-5. **Share `HomeDocsSetup.exe`.** It installs HomeDocs for that user (no administrator password needed).
+6. **Share `HomeDocsSetup.exe`.** It installs HomeDocs for that user (no administrator password needed).
 
 **The "Windows protected your PC" warning:** the installer isn't digitally signed, so people click
 **More info**, then **Run anyway** the first time.
@@ -81,9 +90,10 @@ system: `bash packaging/smoke_test.sh ubuntu:24.04 HomeDocs.deb`.
 
 ## Mac disk image (on a Mac)
 
-1. **Install Python 3.12** from [python.org](https://www.python.org/downloads/macos/) (or `brew install python@3.12`).
+1. **Install Python 3.12** from [python.org](https://www.python.org/downloads/macos/) (or `brew install python@3.12`),
+   and Apple's command line tools (`xcode-select --install`) to compile llama.cpp.
 2. **Build**, from the `homedocs` folder in Terminal: `PYTHON=python3.12 bash packaging/build_mac.sh`. It sets
-   up Python, bundles the app, signs it ad hoc, runs a quick self-test (with its own data folder,
+   up Python, compiles llama.cpp, bundles the app, signs it ad hoc, runs a quick self-test (with its own data folder,
    `build/selftest`) and makes the disk image.
 3. **Share `HomeDocs.dmg`.** People drag HomeDocs into Applications, then allow it once in System Settings >
    Privacy & Security > **Open Anyway** (the app is signed only "ad hoc", with no Apple Developer account).

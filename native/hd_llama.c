@@ -47,6 +47,9 @@ HD_API void hd_init(const char *lib_dir, int log) {
     llama_backend_init();
 }
 
+// How many devices (CPU backends) hd_init found: 0 means none could be loaded, so nothing can run.
+HD_API int hd_devices(void) { return (int)ggml_backend_dev_count(); }
+
 // NULL if the file can't be loaded (missing, damaged, too little memory).
 HD_API hd_model *hd_load(const char *path, int n_ctx, int n_threads, int n_threads_batch) {
     struct llama_model_params mp = llama_model_default_params();

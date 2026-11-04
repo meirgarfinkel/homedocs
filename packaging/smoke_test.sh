@@ -4,8 +4,10 @@
 #   bash packaging/smoke_test.sh debian:12 [HomeDocs-x86_64.AppImage] [models folder]
 # Given HomeDocs.deb instead (Debian and Ubuntu only), it installs that the way the software installer
 # does (which also checks everything it depends on can be found) and tests the installed app.
-# With a models folder (holding the downloaded models), it also checks they run.
+# With a models folder (holding the downloaded models), it also checks they run. llama.cpp is always checked,
+# with the tiny test model in tests/fixtures.
 set -euo pipefail
+TINY="$(cd "$(dirname "$0")/.." && pwd)/tests/fixtures/stories260K.gguf"
 
 IMAGE="$1"
 APP="$(readlink -f "${2:-HomeDocs-x86_64.AppImage}")"
@@ -49,7 +51,7 @@ if [ -n "$MODELS" ]; then
 fi
 
 # Runs as an ordinary user, the way people run it.
-"$ENGINE" run --rm "${MOUNT[@]}" "${MOUNT_MODELS[@]}" "$IMAGE" bash -c "
+"$ENGINE" run --rm "${MOUNT[@]}" "${MOUNT_MODELS[@]}" -v "$TINY:/selftest.gguf:ro" "$IMAGE" bash -c "
   set -e
   $SETUP
   $INSTALL
@@ -58,7 +60,8 @@ fi
     set -e
     cd ~
     mkdir -p data/models
-    [ -d /models ] && cp /models/* data/models/
+    [ -d /models ] && cp -r /models/. data/models/
+    cp /selftest.gguf data/models/selftest.gguf
     $PREP
     echo \"== $IMAGE (glibc \$(ldd --version | head -1 | grep -o \"[0-9.]*\$\"))\"
     HOMEDOCS_HOME=~/data timeout 180 \

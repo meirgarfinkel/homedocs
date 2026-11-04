@@ -2,7 +2,7 @@
 
 Only one runs at a time: opening it again brings the open window forward. Started from the
 applications menu (no terminal), its output goes to app.log in the data folder.
-`--self-test` checks the parts a build can lose (the font, Qt's plugins, the window) and exits 0 if
+`--self-test` checks the parts a build can lose (the font, Qt's plugins, llama.cpp, the window) and exits 0 if
 they all work.
 """
 
@@ -211,6 +211,22 @@ def run_self_test(app) -> int:
             if abs(float(numpy.linalg.norm(vec)) - 1) > 1e-3 or score <= 0:
                 raise RuntimeError("the models gave nonsense")
             ok("the search models run.")
+
+        from ..core import llm
+
+        if getattr(sys, "frozen", False) or llm.available():  # (from source, only once it's built)
+            # a 1 MB story-writing model (tests/fixtures), which the builds put in the data folder
+            tiny = data_dir() / "models" / "selftest.gguf"
+            if not tiny.exists() and not getattr(sys, "frozen", False):
+                tiny = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "stories260K.gguf"
+            if not tiny.exists():
+                raise RuntimeError(f"the tiny test model isn't at {tiny}")
+            chat = llm.LLM(tiny, 256, 2)
+            words = "".join(chat.generate("", "Once upon a time", 8))
+            chat.close()
+            if not words.strip():
+                raise RuntimeError("llama.cpp wrote nothing")
+            ok(f"llama.cpp writes ({words.strip()!r}).")
 
         from .main_window import MainWindow
         from .models_ui import ModelLoader

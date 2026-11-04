@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Builds llama.cpp (the pinned release below) and native/hd_llama.c into build/llama/ (or the folder given):
-# the libraries core/llm.py loads to write answers. Linux and Mac; Windows has build_llama.bat.
+# the libraries core/llm.py loads to write answers, which the app builds bundle. Linux and Mac; Windows has
+# build_llama.bat. A second run only rebuilds what changed.
 #
 #   bash packaging/build_llama.sh [OUT_DIR]
 #
@@ -14,9 +15,10 @@ LLAMA_COMMIT=a37cc46104eb50900d5ab4a9ba02a0abdac039db
 CMAKE_VERSION=4.4.4  # only used if CMake isn't installed
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="${1:-$ROOT/build/llama}"
-SRC="$ROOT/build/llama-src"
-WORK="$ROOT/build/llama-build"
+BUILD="${HOMEDOCS_BUILD:-$ROOT/build}"  # (the release container builds in its own folder)
+OUT="${1:-$BUILD/llama}"
+SRC="$ROOT/build/llama-src"  # (the source is shared)
+WORK="$BUILD/llama-build"
 
 if [ ! -d "$SRC/.git" ]; then
   git -c advice.detachedHead=false clone --quiet --depth 1 --branch "$LLAMA_TAG" https://github.com/ggml-org/llama.cpp "$SRC"
@@ -29,11 +31,11 @@ fi
 
 CMAKE=cmake
 if ! command -v cmake >/dev/null; then
-  if [ ! -x "$ROOT/build/cmake-env/bin/cmake" ]; then
-    python3 -m venv "$ROOT/build/cmake-env"
-    "$ROOT/build/cmake-env/bin/pip" install --quiet "cmake==$CMAKE_VERSION"
+  if [ ! -x "$BUILD/cmake-env/bin/cmake" ]; then
+    "${PYTHON:-python3}" -m venv "$BUILD/cmake-env"
+    "$BUILD/cmake-env/bin/pip" install --quiet "cmake==$CMAKE_VERSION"
   fi
-  CMAKE="$ROOT/build/cmake-env/bin/cmake"
+  CMAKE="$BUILD/cmake-env/bin/cmake"
 fi
 
 flags=(
@@ -60,7 +62,7 @@ mkdir -p "$OUT"
 # backends, which are loaded by path at run time
 for f in "$WORK"/out/* "$WORK"/bin/*; do
   case "$(basename "$f")" in
-    libhd_llama.* | lib*.so.[0-9] | lib*.[0-9].dylib | libggml-cpu-*.so | libggml-cpu*.dylib) cp -L "$f" "$OUT/" ;;
+    libhd_llama.* | lib*.so.[0-9] | lib*.[0-9].dylib | libggml-cpu*.so) cp -L "$f" "$OUT/" ;;
   esac
 done
 echo "Built llama.cpp $LLAMA_TAG with hd_llama into $OUT:"
