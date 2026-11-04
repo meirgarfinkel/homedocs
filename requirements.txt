@@ -1,0 +1,3 @@
+# The app's window: Qt's core modules only (no web engine, no QML).
+# 6.12.0 miscounts references in QPainter calls and crashes (found in HomePix)
+PySide6-Essentials==6.11.3
