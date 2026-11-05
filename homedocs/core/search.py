@@ -46,6 +46,7 @@ class Found:
     results: list[Result]
     seconds: float
     by_meaning: bool  # False: keyword search only (the models aren't ready)
+    candidates: list[int] = field(default_factory=list)  # the passages given to the re-ranker (for the evals)
 
 
 def fuse(*ranked: list[int], k: int = RRF_K) -> list[int]:
@@ -92,7 +93,7 @@ class Searcher:
             meaning = (
                 [c for c, _ in index.search(embedder.embed_question(question), VECTOR_CANDIDATES)] if by_meaning else []
             )
-            ids = fuse(keyword, meaning)[:RERANK_CANDIDATES]
+            ids = fuse(keyword, meaning, k=RRF_K)[:RERANK_CANDIDATES]
             results = _results(db, ids)
             if reranker is not None and by_meaning and results:
                 for r, s in zip(results, reranker.score(question, [r.text for r in results]), strict=True):
@@ -104,7 +105,7 @@ class Searcher:
                 r.spans = spans.get(r.chunk_id, [])
         finally:
             db.close()
-        return Found(results, time.perf_counter() - start, by_meaning)
+        return Found(results, time.perf_counter() - start, by_meaning, ids)
 
 
 def _results(db, ids: list[int]) -> list[Result]:

@@ -17,7 +17,9 @@ from .config import MAX_PASSAGE_CHARS, MIN_PASSAGE_WORDS, MIN_SECTION_WORDS, OVE
 from .parsers import Doc
 
 _PARAGRAPHS = re.compile(r"\n[ \t]*\n\s*")  # a blank line
-_SENTENCE_END = re.compile(r"[.!?…]+[\"'”’)\]]*\s+|\n")  # a sentence's end, or a line break inside a paragraph
+# a sentence's end, or a line break inside a paragraph (a list item, a table row), but not one where a printed
+# line just wraps: the next line going on in lowercase (PDF text has a line break at the end of every line)
+_SENTENCE_END = re.compile(r"[.!?…]+[\"'”’)\]]*\s+|\n(?![ \t]*[a-z(,;:])")
 _WORD = re.compile(r"\S+")
 _NOTHING = re.compile(r"(?!)")  # matches nowhere
 

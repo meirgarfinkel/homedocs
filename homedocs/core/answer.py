@@ -2,9 +2,9 @@
 
 1. Ask the model at all? Not when nothing was found, or when even the best passage's re-ranker score is below
    NOT_FOUND_SCORE: then the answer is "Not in your files." at once.
-2. The prompt: the best ANSWER_PASSAGES passages, numbered, with their file and place. The model is told to
-   answer from them alone in a few sentences, or say "Not in your files." It isn't asked to cite: in the test
-   (REQUIREMENTS.md), small models cited the wrong passage or ignored the instruction.
+2. The prompt: the best passages that fit in ANSWER_CHARS (pick()), numbered, with their file and place. The
+   model is told to answer from them alone in a few sentences, or say "Not in your files." It isn't asked to
+   cite: in the test (REQUIREMENTS.md), small models cited the wrong passage or ignored the instruction.
 3. The answer streams in, a piece at a time.
 4. Sources: each sentence of the answer is matched against every sentence of those passages, by the share of
    its words found there and by meaning (the embedder). The best match, if close enough, backs it; a sentence
@@ -22,8 +22,7 @@ from dataclasses import dataclass, field
 
 from . import store
 from .config import (
-    ANSWER_PASSAGE_CHARS,
-    ANSWER_PASSAGES,
+    ANSWER_CHARS,
     ANSWER_TOKENS,
     NOT_FOUND_SCORE,
     SUPPORT_MEANING,
@@ -36,7 +35,10 @@ NOT_FOUND = "Not in your files."
 INSTRUCTIONS = (
     "You answer questions using only the numbered passages below, which come from the user's own files. "
     "Answer in one to three short sentences. Use only facts stated in the passages. "
-    f'If the passages don\'t contain the answer, reply exactly: "{NOT_FOUND}"'
+    "A passage that settles the question answers it, even in other words: for a yes-or-no question, a rule "
+    "that allows or forbids it is the answer. If the question needs arithmetic, work it out from the passages' "
+    "numbers and give the result. Some passages are about other things: ignore them. "
+    f'Only if no passage settles the question, reply exactly: "{NOT_FOUND}"'
 )
 
 
@@ -69,8 +71,24 @@ class Answer:
         return is_not_found(self.text)
 
 
+# the model saying "Not in your files." in its own words: "...is not provided in the passages"
+_NO_ANSWER = re.compile(
+    r"\b(?:not|n't)\s+(?:\w+\s+)?(?:provided|specified|mentioned|stated|given|included|found|listed)\s+in\s+"
+    r"the\s+(?:provided\s+|given\s+)?passages|\bthe\s+passages\s+(?:do\s+not|don't)\s+"
+    r"(?:say|mention|state|specify|contain|include)",
+    re.I,
+)
+
+
 def is_not_found(text: str) -> bool:
-    return text.strip().lower().startswith(NOT_FOUND.lower().rstrip("."))
+    """The answer is "Not in your files.": it starts with that, ends with it after a hedge, or its first
+    sentence says the passages don't hold the answer (a partial answer followed by one is kept)."""
+    text = text.strip()
+    key = NOT_FOUND.lower().rstrip(".")
+    if text.lower().startswith(key) or text.lower().rstrip(". ").endswith(key):
+        return True
+    first = re.split(r"(?<=[.!?])\s+", text, maxsplit=1)[0]
+    return bool(_NO_ANSWER.search(first))
 
 
 def should_ask(found: Found) -> bool:
@@ -82,6 +100,17 @@ def should_ask(found: Found) -> bool:
     return True
 
 
+def pick(results: list[Result]) -> list[Result]:
+    """The passages the model reads: the best ones that fit in ANSWER_CHARS, in rank order. One that doesn't fit
+    is passed over (a shorter one after it may still fit); the best is always read, cut to fit if it must be."""
+    picked, room = [], ANSWER_CHARS
+    for r in results:
+        if not picked or len(r.text) <= room:
+            picked.append(r)
+            room -= len(r.text)
+    return picked
+
+
 def prompt(question: str, passages: list[Result]) -> tuple[str, str]:
     """(instructions, rest) in Qwen's chat format, thinking off. The instructions are the same every time, so
     the model reads them once and keeps them."""
@@ -89,7 +118,7 @@ def prompt(question: str, passages: list[Result]) -> tuple[str, str]:
     blocks = []
     for i, r in enumerate(passages, 1):
         where = f" — {r.where()}" if r.where() else ""
-        text = r.text if len(r.text) <= ANSWER_PASSAGE_CHARS else r.text[:ANSWER_PASSAGE_CHARS] + " …"
+        text = r.text if len(r.text) <= ANSWER_CHARS else r.text[:ANSWER_CHARS] + " …"
         blocks.append(f"[{i}] {r.name}{where}\n{text}")
     rest = (
         "\n\n".join(blocks)
@@ -200,7 +229,7 @@ class Answerer:
 
         start = time.perf_counter()
         self._stopped = False
-        passages = found.results[:ANSWER_PASSAGES]
+        passages = pick(found.results)
         if not should_ask(found):
             text = NOT_FOUND
             on_text(text)
@@ -272,8 +301,7 @@ def load(db, question_id: int) -> tuple[Answer, list[Result]] | None:
     spans = store.highlights(db, row["question"], [r.chunk_id for r in shown])
     for r in shown:
         r.spans = spans.get(r.chunk_id, [])
-    by_id = {r.chunk_id: r for r in shown}
-    read = [by_id[c] for c in ids[:ANSWER_PASSAGES] if c in by_id]
+    read = shown  # (the passages read were among those shown; sources are matched by passage)
     place = {r.chunk_id: i for i, r in enumerate(read)}
     out = []
     for start, end, cid, s, e, checked in json.loads(row["sources"]):

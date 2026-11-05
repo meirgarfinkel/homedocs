@@ -159,13 +159,15 @@ indexing together). For each folder in the settings:
    written, `#` and underlined headings found; text decoded as UTF-8, UTF-16 or Windows-1252). A failure stores
    the reason (a scanned PDF, a password, a damaged file) and the file is marked `failed`, not retried until it
    changes.
-5. **Split:** `passages.py` cuts the text into passages of up to 300 words (roughly 400 tokens), counted in
-   words so changing the model never means splitting again. Sentences are added until the next would pass 300
-   words; the passage then ends at the last paragraph end past 150 words, or, if there's none (one long
-   paragraph), where it is, between sentences (a sentence longer than a passage is cut between words). The last
-   50 words or so (whole sentences) start the next passage too, at every cut, since a paragraph often leans on
-   the one before it. A heading starts a new passage
-   once the current one has some text, and never ends one. Each passage keeps its pages, the headings it's under
+5. **Split:** `passages.py` cuts the text into passages of up to 60 words (roughly 90 tokens), counted in
+   words so changing the model never means splitting again. Short passages won the eval: the re-ranker reads
+   all of each one, and the model's reading budget holds several from different places. Sentences are added
+   until the next would pass 60 words; the passage then ends at the last paragraph end past 30 words, or, if
+   there's none (one long paragraph), where it is, between sentences (a sentence longer than a passage is cut
+   between words). A line break counts as a sentence end (a list item, a table row) unless the next line goes
+   on in lowercase: PDF text has a line break at the end of every printed line. The last 15 words or so (whole
+   sentences) start the next passage too, at every cut, since a paragraph often leans on the one before it. A
+   heading starts a new passage once the current one has 20 words, and never ends one. Each passage keeps its pages, the headings it's under
    (like `Coverage > Deductible`) and its start and end position in the file's text.
 6. **Save:** one transaction per file replaces its old passages and keyword index rows, then marks it
    `indexed`, so a crash at any point leaves the file either fully old or fully new; on the next start, anything
@@ -209,8 +211,9 @@ with "Open file" and "Show in folder".
 1. **Ask the model at all?** If nothing was found, or the best passage's re-ranker score is below
    `NOT_FOUND_SCORE` (−7), the answer is "Not in your files." at once. Above that, scores of answerable and
    unanswerable questions overlap, so the model decides (see REQUIREMENTS.md, how the chat model was chosen).
-2. **Prompt:** the best `ANSWER_PASSAGES` (3) passages, numbered, each with its file name and page or
-   headings. The instructions: answer in one to three short sentences, only from the passages, and if they
+2. **Prompt:** the best passages that fit in `ANSWER_CHARS` (1,800 characters, about 550 tokens: what the
+   model reads within the 5 s to the first word), in rank order: one that doesn't fit is passed over, and a
+   shorter one after it may still fit. They're numbered, each with its file name and page or headings. The instructions: answer in one to three short sentences, only from the passages, and if they
    don't hold the answer reply exactly "Not in your files." The model isn't asked to cite: small models do it
    badly. The prompt is written out in Qwen's chat format, with thinking turned off.
 3. **Stream:** `llm.py` reads the prompt and yields tokens one at a time. The instructions are the same for
@@ -219,7 +222,7 @@ with "Open file" and "Show in folder".
    same signal relay and checks a cancel flag between tokens (and between batches while reading the prompt),
    so a new question stops the old answer at once.
 4. **Find sources:** once finished, the answer is split into sentences (a line wrapped by hand isn't a sentence
-   end). For each, every sentence of the three passages is scored two ways: the share of its words (stemmed,
+   end). For each, every sentence of the passages read is scored two ways: the share of its words (stemmed,
    common words and the question's own words left out, so what it adds, like "45 minutes", is what's checked)
    found there, and how close they are in meaning (the embedder, already loaded). A sentence with nothing to
    check ("Yes.") is left alone. The best match above `SUPPORT_WORDS` or
@@ -249,14 +252,17 @@ eval set and its documents are never in the app.
 
 **The questions** (`tests/evals/questions.jsonl`, about 100): each has a type (one fact, table, two passages,
 two documents, across a page break, reworded, calculation, not in the files), the passages it needs (file and a
-short quote each), the facts a right answer states (patterns), and whether it's for tuning or held back
-(`"held_back": true`, about 30%).
+short quote each, or a list of quotes when the same fact is in more than one place), the facts a right answer
+states (patterns), and whether it's for tuning or held back (`"held_back": true`, about 30%). Each run first
+checks that every quote is in its file, so a mistake in the questions isn't blamed on HomeDocs.
 
-**A run** indexes the documents into a fresh data folder with the real indexer, then for each question:
+**A run** indexes the documents with the real indexer into a data folder under `build/evals/`, kept for the
+next run while the documents, the splitting settings and the splitting code are unchanged; then for each
+question:
 
 1. **Split:** is each needed quote whole inside one passage?
 2. **Search:** is every needed passage among search's `RERANK_CANDIDATES`?
-3. **Pick:** after re-ranking, is every needed passage among the `ANSWER_PASSAGES` the model reads?
+3. **Pick:** after re-ranking, is every needed passage among those the model reads (`answer.pick`)?
 4. **Answer:** the chat model answers; it's right if it states every fact (or says "Not in your files" when
    it should).
 
@@ -264,7 +270,8 @@ A failed question is blamed on the first step that lost it. The report gives, pe
 how many were lost, plus "Not in your files" accuracy, the share of sentences with a source, sentences sourced
 from the wrong file, and the median and slowest time to the first word. `--search` stops after step 3 (seconds,
 no chat model), to try search settings quickly; `--held-back` runs the held-back questions instead of the
-tuning ones; `--only TYPE` runs one type.
+tuning ones; `--only TYPE` runs one type; `--set NAME=VALUE` changes a setting of `config.py` for the run (in
+every module that imported it). Each run's answers are saved to `build/evals/results-*.json`.
 
 **Tuning** changes one setting at a time (`core/config.py` holds them all: passage size and overlap,
 candidates, how keyword and meaning results are combined, passages the model reads and their length, the "Not in
@@ -287,7 +294,7 @@ time; SQLite's WAL mode lets search read while indexing writes.
 
 Roughly: Python and Qt ~250 MB, chat model ~1.1 GB with its context, embedder and reranker ~200 MB, vectors
 and the database cache ~100 MB. Around 2 GB with everything loaded. The context window is kept small
-(`N_CTX` in `config.py`, 3,072 tokens) because three passages and an answer fit in it. Measured with Qwen3-1.7B: 2.4 GB
+(`N_CTX` in `config.py`, 3,072 tokens) because the passages read and an answer fit in it. Measured with Qwen3-1.7B: 2.4 GB
 for a test script holding the chat model and Python (no window).
 
 ## The tests

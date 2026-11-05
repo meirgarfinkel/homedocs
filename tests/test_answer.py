@@ -6,8 +6,8 @@ import threading
 from fakes import FakeEmbedder, FakeLLM
 
 from homedocs.core import answer as answers
-from homedocs.core.answer import NOT_FOUND, Answerer, prompt, should_ask, tidy
-from homedocs.core.config import ANSWER_PASSAGE_CHARS, ANSWER_PASSAGES, NOT_FOUND_SCORE
+from homedocs.core.answer import NOT_FOUND, Answerer, pick, prompt, should_ask, tidy
+from homedocs.core.config import ANSWER_CHARS, NOT_FOUND_SCORE
 from homedocs.core.search import Found, Result
 
 
@@ -32,7 +32,7 @@ def test_the_model_is_skipped_when_nothing_could_answer():
 
 def test_the_prompt_numbers_the_best_passages_and_keeps_the_instructions_apart():
     rs = [result(i, f"Passage number {i}.") for i in range(1, 6)]
-    first, rest = prompt("How late is late?", rs[:ANSWER_PASSAGES])
+    first, rest = prompt("How late is late?", rs[:3])
     assert first.startswith("<|im_start|>system\n") and "Not in your files." in first
     assert "Passage number" not in first and "How late" not in first  # (the same every time: read once)
     assert "[1] file1.md — Rent > Late fees\nPassage number 1." in rest and "[3] file3.md" in rest
@@ -40,15 +40,31 @@ def test_the_prompt_numbers_the_best_passages_and_keeps_the_instructions_apart()
     assert rest.endswith("Question: How late is late?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n")
 
 
-def test_a_very_long_passage_is_cut_for_the_prompt():
-    _, rest = prompt("q", [result(1, "word " * 2000)])
-    assert len(rest) < ANSWER_PASSAGE_CHARS + 300
+def test_the_model_reads_the_best_passages_that_fit_in_its_budget():
+    big, mid, small = "x" * (ANSWER_CHARS - 100), "y" * 300, "z" * 50
+    rs = [result(1, big), result(2, mid), result(3, small), result(4, small), result(5, small)]
+    assert [r.chunk_id for r in pick(rs)] == [1, 3, 4]  # (2 doesn't fit after 1; the short ones do)
+    assert [r.chunk_id for r in pick(rs[1:])] == [2, 3, 4, 5]
+    assert pick([]) == []
+
+
+def test_a_very_long_passage_is_still_read_but_cut():
+    rs = [result(1, "word " * 2000), result(2, "short")]
+    assert [r.chunk_id for r in pick(rs)] == [1]
+    _, rest = prompt("q", pick(rs))
+    assert len(rest) < ANSWER_CHARS + 300
 
 
 def test_tidy():
     assert tidy("  The fee is $75.  ") == "The fee is $75."
     assert tidy("Not in your files. The passages talk about rent.") == NOT_FOUND
     assert tidy("<think>hmm</think>The fee is $75.") == "The fee is $75."
+    # the same in the model's own words
+    assert tidy("The car's license plate number is not provided in the passages.") == NOT_FOUND
+    assert tidy("The passages don't mention a license plate.") == NOT_FOUND
+    assert tidy("Repairs are not specified. Not in your files.") == NOT_FOUND
+    partial = "Rent is $1,850. The due date is not mentioned in the passages."
+    assert tidy(partial) == partial
 
 
 def test_an_answer_streams_in_and_its_sentence_is_backed():

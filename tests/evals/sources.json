@@ -1,0 +1,40 @@
+{
+  "about": "Public-domain US government publications for the eval, downloaded into build/evals/gov/ and checked against these sha256 sums. IRS prior-year URLs don't change; Medicare & You is replaced every fall, so a newer one fails the check (the questions quote the 2027 edition).",
+  "files": [
+    {
+      "file": "p501--2024.pdf",
+      "title": "IRS Publication 501 (2024): Dependents, Standard Deduction, and Filing Information",
+      "url": "https://www.irs.gov/pub/irs-prior/p501--2024.pdf",
+      "sha256": "e94ffe4312d220792b11a7dfe092f9daf782b797a6591f90b521b2a9aa9eb352",
+      "pages": 30
+    },
+    {
+      "file": "p523--2024.pdf",
+      "title": "IRS Publication 523 (2024): Selling Your Home",
+      "url": "https://www.irs.gov/pub/irs-prior/p523--2024.pdf",
+      "sha256": "60a6a94250b919dc259eef795e2fc348f3d49354146444be8ea3e288155bec95",
+      "pages": 27
+    },
+    {
+      "file": "p530--2024.pdf",
+      "title": "IRS Publication 530 (2024): Tax Information for Homeowners",
+      "url": "https://www.irs.gov/pub/irs-prior/p530--2024.pdf",
+      "sha256": "c46fb18d4b27e60861071203917d622988bfc9a0ccc12e0d8621ce1ef44094fc",
+      "pages": 24
+    },
+    {
+      "file": "p936--2024.pdf",
+      "title": "IRS Publication 936 (2024): Home Mortgage Interest Deduction",
+      "url": "https://www.irs.gov/pub/irs-prior/p936--2024.pdf",
+      "sha256": "71ec0e9623c7bb4dc606d91ee87285ab40c8d37233673db31ce4f1af51adb25b",
+      "pages": 18
+    },
+    {
+      "file": "10050-medicare-and-you.pdf",
+      "title": "Medicare & You 2027 (CMS Product No. 10050)",
+      "url": "https://www.medicare.gov/publications/10050-medicare-and-you.pdf",
+      "sha256": "e9b6768279c3a022c9e8e28efa38b0a8c011e6af79fed48806f28d228f7a6b65",
+      "pages": 128
+    }
+  ]
+}

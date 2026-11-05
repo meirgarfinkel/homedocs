@@ -1,0 +1,68 @@
+title: Summary of Benefits and Coverage - Brightwave Silver PPO 2026
+bookmarks: yes
+---
+# Summary of Benefits and Coverage: Brightwave Silver PPO
+
+Coverage period: January 1, 2026 to December 31, 2026. Coverage for: individual and family. Plan type: PPO. Group number: BW-20934. Insurer: Cobalt Health Plans. This is only a summary. The plan document has the full terms and is available from Brightwave HR or at cobalthealth.example/plans.
+
+# Important questions
+
+What is the overall deductible? $1,500 per person or $3,000 per family for in-network providers, and $4,000 per person or $8,000 per family for out-of-network providers. Generally, you must pay all of the costs from providers up to the deductible before this plan begins to pay. Each family member meets their own deductible until the family deductible has been met.
+
+Are there services covered before you meet your deductible? Yes. Preventive care, primary care and specialist visits, generic drugs, and telehealth are covered before you meet your deductible; you pay only the copay.
+
+What is the out-of-pocket limit? $6,000 per person or $12,000 per family in network. There is no out-of-pocket limit for out-of-network care. Premiums, balance-billed charges, and care this plan does not cover are not counted toward the limit.
+
+Do you need a referral to see a specialist? No. You can see the specialist you choose without a referral.
+
+# What you pay for common medical events
+
+| Service | In network | Out of network |
+| Primary care visit | $30 copay | 40% coinsurance after deductible |
+| Specialist visit | $60 copay | 40% coinsurance after deductible |
+| Preventive care, screening, immunization | No charge | 40% coinsurance after deductible |
+| Diagnostic test (x-ray, blood work) | 20% coinsurance after deductible | 40% coinsurance after deductible |
+| Imaging (CT, PET, MRI) | 20% coinsurance after deductible; prior authorization required | 40% coinsurance after deductible |
+| Urgent care | $75 copay | 40% coinsurance after deductible |
+| Emergency room | $350 copay, waived if admitted | $350 copay, waived if admitted |
+| Ambulance | 20% coinsurance after deductible | 20% coinsurance after deductible |
+| Hospital stay (facility) | 20% coinsurance after deductible | 40% coinsurance after deductible |
+| Outpatient surgery | 20% coinsurance after deductible | 40% coinsurance after deductible |
+| Mental health office visit | $30 copay | 40% coinsurance after deductible |
+| Physical therapy (30 visits per year) | $40 copay | 40% coinsurance after deductible |
+
+# Prescription drugs
+
+| Tier | Retail, 30-day supply | Mail order, 90-day supply |
+| Tier 1 - generic | $10 copay | $20 copay |
+| Tier 2 - preferred brand | $45 copay | $112.50 copay |
+| Tier 3 - non-preferred brand | $90 copay | $225 copay |
+| Tier 4 - specialty | 30% coinsurance, up to $250 | Not available |
+
+Out-of-network pharmacies are not covered except in an emergency. Some drugs need step therapy: you try a lower-tier drug first. The drug list is at cobalthealth.example/druglist.
+
+# Prior authorization
+
+Prior authorization is required for MRI, CT, and PET scans, planned hospital stays, outpatient surgery, home health care, and specialty drugs. Your in-network provider asks for it. If prior authorization is not obtained, benefits for that service are reduced by 50%, up to $1,000 per service. Emergency care never needs prior authorization.
+
+# Telehealth
+
+Virtual visits through CobaltConnect cost $0 for primary care and urgent care, and $40 for mental health therapy sessions. Virtual visits with your own in-network doctor cost the same as an office visit.
+
+# Excluded services
+
+Services this plan does not cover include: adult dental care; adult routine eye care and glasses; acupuncture; cosmetic surgery; hearing aids; infertility treatment; long-term care; weight loss programs; and non-emergency care when traveling outside the U.S. Children under 19 are covered for one routine eye exam and one pair of glasses per year, and for dental checkups twice a year.
+
+# Coverage examples
+
+These are examples of how the plan might cover a few kinds of care. Your costs depend on the actual care you get, the prices your providers charge, and many other things.
+
+Peg is having a baby (9 months of in-network prenatal care and a hospital delivery). Total example cost: $12,700. In this example Peg pays: deductible $1,500, copayments $10, coinsurance $2,100, limits or exclusions $60. Total Peg pays: $3,670.
+
+Managing Joe's type 2 diabetes (a year of routine in-network care of a well-controlled condition). Total example cost: $5,600. In this example Joe pays: deductible $900, copayments $600, coinsurance $0, limits or exclusions $20. Total Joe pays: $1,520.
+
+Mia's simple fracture (in-network emergency room visit and follow-up care). Total example cost: $2,800. In this example Mia pays: deductible $1,500, copayments $400, coinsurance $200, limits or exclusions $0. Total Mia pays: $2,100.
+
+# Your rights and contacts
+
+You may have the right to appeal a denied claim within 180 days of the denial. Member services: 1-888-555-0177, weekdays 8 a.m. to 8 p.m. Nurse line: 1-888-555-0178, 24 hours. If you lose this coverage, you may be able to continue it under COBRA for up to 18 months.

@@ -11,17 +11,18 @@ FILE_TYPES = {".pdf": "PDF", ".docx": "Word", ".md": "Markdown", ".markdown": "M
 MAX_FILE_MB = 100  # bigger files are listed as skipped, not read
 
 # Passages: counted in words, not a model's tokens, so changing models never means splitting again.
-# 300 words is about 400 tokens of English, well inside the 512 the embedding models take.
-PASSAGE_WORDS = 300
-OVERLAP_WORDS = 50  # the end of each passage starts the next, so a sentence near the cut is in both
-MIN_PASSAGE_WORDS = 150  # a full passage ends at the last paragraph's end past this many words, if any
-MIN_SECTION_WORDS = 50  # a heading starts a new passage once the current one has at least this many
+# Short ones (60 words, about 90 tokens) won the eval: the re-ranker reads all of each one, and the model's
+# reading budget (ANSWER_CHARS) holds five or so from different places instead of one or two long ones.
+PASSAGE_WORDS = 60
+OVERLAP_WORDS = 15  # the end of each passage starts the next, so a sentence near the cut is in both
+MIN_PASSAGE_WORDS = 30  # a full passage ends at the last paragraph's end past this many words, if any
+MIN_SECTION_WORDS = 20  # a heading starts a new passage once the current one has at least this many
 MAX_PASSAGE_CHARS = 3000  # text without spaces (a long URL, a table dump) is cut at this length
 
 # Search: the best KEYWORD_CANDIDATES by keyword and VECTOR_CANDIDATES by meaning are merged (reciprocal rank
 # fusion, RRF_K), the best RERANK_CANDIDATES of those re-ranked, and SHOW_RESULTS shown. Re-ranking reads each
-# passage's first RERANK_MAX_TOKENS tokens: 20 passages that long take about 0.4 s on a 2021 laptop, where 30
-# full-length ones took 2.6 s. (Starting values: the eval set tunes them.)
+# passage's first RERANK_MAX_TOKENS tokens (all of a passage, now they're short): 20 take about 0.4 s on a 2021
+# laptop. (Starting values: the eval set tunes them.)
 KEYWORD_CANDIDATES = 50
 VECTOR_CANDIDATES = 50
 RRF_K = 60
@@ -30,18 +31,19 @@ RERANK_MAX_TOKENS = 256
 SHOW_RESULTS = 8
 EMBED_BATCH = 8  # passages embedded at a time while indexing (stopping waits for one batch at most)
 
-# Answers: the chat model reads the best ANSWER_PASSAGES and writes at most ANSWER_TOKENS. It isn't asked at all
-# when the best passage's re-ranker score is below NOT_FOUND_SCORE: answerable questions scored as low as -5.8
+# Answers: the chat model reads the best passages that fit in ANSWER_CHARS characters, and writes at most
+# ANSWER_TOKENS. ANSWER_CHARS is the speed budget: 1,800 characters is about 550 tokens, which the model reads
+# in about 4.5 s on a 2021 laptop (~120 tokens/s once warm), so the first word comes within 5 s. It isn't asked
+# at all when the best passage's re-ranker score is below NOT_FOUND_SCORE: answerable questions scored as low as -5.8
 # in the test, unanswerable ones -5.3 to -10.6, so only clearly hopeless ones are cut. A sentence of the answer
 # counts as backed by a passage sentence holding SUPPORT_WORDS of its words, or this close in meaning
 # (SUPPORT_MEANING, the cosine of their vectors). (Measured starting values: see REQUIREMENTS.md.)
-ANSWER_PASSAGES = 3
+ANSWER_CHARS = 1800
 ANSWER_TOKENS = 300
-ANSWER_PASSAGE_CHARS = 2800  # a passage longer than this (a long table, say) is cut, so three always fit
 NOT_FOUND_SCORE = -7.0
 SUPPORT_WORDS = 0.6
 SUPPORT_MEANING = 0.80
-N_CTX = 3072  # the chat model's context: instructions, three passages, the question and the answer
+N_CTX = 3072  # the chat model's context: instructions, the passages, the question and the answer
 
 RESCAN_GAP = 60  # seconds: coming back to the window looks for changed files at most this often
 

@@ -1,0 +1,19 @@
+Home network notes (kept by me, updated May 2026)
+
+Router: Netlink AX3000, in the hall closet on the top shelf. Admin page at http://192.168.1.1, admin
+username "admin", the admin password is written on the inside of the closet door, not here.
+
+Wifi names: "MapleHome" (main) and "MapleHome-Guest" (guests). The guest network password is
+sunflower-lantern-42 and it is changed every January. The guest network can't see the printer or the NAS.
+
+Internet: fiber plan, 500 Mbps down / 500 Mbps up, $65 a month, account number 88213. Support line
+555-0123. If the internet is down, first unplug the white ONT box next to the router for 30 seconds, then
+restart the router. The ONT's lights should be solid green; a red LOS light means a line problem and only the
+provider can fix it.
+
+Printer: Brother HL-L2350DW at 192.168.1.40 (reserved address). Toner cartridge is TN-760.
+
+NAS: Synology DS220+ with two 4 TB drives mirrored. Photos back up to it every night at 2 a.m. and the NAS
+copies everything to the cloud backup every Sunday.
+
+Smart thermostat: on the main network. Schedule is 68°F days, 64°F nights in winter.
