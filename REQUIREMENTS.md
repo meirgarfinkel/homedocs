@@ -126,7 +126,7 @@ replaces HomePix's sand-on-ink look. The design board: https://claude.ai/artifac
 | Accent (citation numbers, icons) | `#DDB088` apricot | `#966230` |
 | Accent fill (buttons, white text on it) | `#966230` | `#966230` |
 | "15 files indexed" | `#86D9A6` light green | `#2E8A55` |
-| The supporting sentence's highlight | white at 10% | `#F1F1EF` |
+| The supporting sentence's highlight (and the question's words, in bold) | white at 10% | ink at 9% (`#F1F1EF` vanished on the tinted Info panel) |
 
 - **Font:** Inter for everything, answers included (bundled, OFL), in place of Plus Jakarta Sans.
 - **Sizes:** the question as a 22 px title over the answer; the answer 16 px; the rest 14 px, small text 12–13 px.

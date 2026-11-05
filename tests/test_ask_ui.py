@@ -33,7 +33,8 @@ def test_asking_shows_the_best_passages(hd, app, folder):
         first = page.cards[0]
         assert first.title.text() == "car.md" and first.where.text() == "Car insurance"
         assert "background-color" in first.body.text() and ">deductible<" in first.body.text()
-        assert page.status.text().startswith("2 passages from 2 files") or page.status.text().startswith("1 passage")
+        assert page.heading.text().startswith(("Passages · 2 from 2 files", "Passages · 1 from"))
+        assert page.title.text() == "what is my deductible?" and page.cards[0].property("first")
         assert not page.note.isVisible()
         first.clicked.emit(first.result)
         assert w.info_dock.isVisible() and w.info.title.text() == "car.md"
@@ -94,7 +95,7 @@ def test_a_failed_download_offers_to_try_again(hd, app, folder, monkeypatch):
         wait_until(app, lambda: indexed(hd) == 2 and not w.watcher.running())  # (slow on Windows CI)
         w.ask("router password")  # keyword search still works
         wait_until(app, lambda: page.cards)
-        assert page.cards[0].title.text() == "wifi.md" and "keyword only" in page.status.text()
+        assert page.cards[0].title.text() == "wifi.md" and "keyword only" in page.heading.text()
         monkeypatch.setattr(models.Model, "ready", lambda self: True)
         page.note_button.click()
         wait_until(app, lambda: w.models.loaded)
@@ -120,10 +121,10 @@ def test_an_answer_with_links_to_its_sources(hd, app, folder):
         wait_until(app, lambda: answered(page))
         a = page.answer.answer
         assert a.text == "The deductible is five hundred dollars per claim."
-        assert 'href="source:0"' in page.answer.body.text() and "1 of 1 sentences" in page.answer.info.text()
+        assert '<sup><a href="source:0"' in page.answer.body.text()
         page.answer._link("source:0")
         assert w.info_dock.isVisible() and w.info.title.text() == "car.md"
-        assert "0.45" in w.info.text.text()  # (the backing sentence, highlighted)
+        assert "background-color:rgba(255,255,255,0.10)" in w.info.text.text()  # (the backing sentence)
         wait_until(app, lambda: w.sidebar._recent)
         assert w.sidebar._recent[1].text(0) == "what is my deductible?"
     finally:
@@ -144,7 +145,7 @@ def test_a_recent_question_reopens_without_the_model(hd, app, folder):
         old = next(i for i in w.sidebar._recent[1:] if "deductible" in i.text(0))
         w.sidebar.setCurrentItem(old)
         wait_until(app, lambda: "deductible" in page.answer.answer.text)
-        assert w.ask_box.text() == "what is my deductible?" and "asked" in page.status.text()
+        assert w.ask_box.text() == "what is my deductible?" and "asked" in page.heading.text()
         assert page.cards[0].title.text() == "car.md" and 'href="source:0"' in page.answer.body.text()
         assert len(w.answerer._llm.prompts) == asked  # (the model wasn't asked again)
     finally:

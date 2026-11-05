@@ -1,4 +1,5 @@
-"""The toolbar's menu: a hamburger button that turns into an X while its menu is open, and the menu's
+"""The top bar's menu: a hamburger button that turns into an X while its menu is open (the menu opening
+leftward from it, inside the window), and the menu's
 rows: an icon, a name (with a line under it saying what it does, for the main ones), and on the right
 the shortcut, or a tick for a setting that's on."""
 
@@ -21,7 +22,8 @@ from . import theme
 
 
 class MenuButton(QToolButton):
-    """Three lines that turn into an X while the menu is open (and back when it closes)."""
+    """Three lines that turn into an X while the menu is open (and back when it closes). The menu lines up
+    with the button's right edge, so it opens leftward: the button is at the window's right end."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -36,6 +38,14 @@ class MenuButton(QToolButton):
         super().setMenu(menu)
         menu.aboutToShow.connect(lambda: self._go(1.0))
         menu.aboutToHide.connect(lambda: self._go(0.0))
+        menu.installEventFilter(self)
+
+    def eventFilter(self, obj, e):  # noqa: N802 (Qt's name)
+        if e.type() == QEvent.Type.Show and obj is self.menu():
+            corner = self.mapToGlobal(self.rect().bottomRight())
+            obj.move(corner.x() - obj.width() + 1, obj.y())
+
+        return False
 
     def _go(self, to):
         self._anim.stop()
@@ -61,7 +71,7 @@ class MenuButton(QToolButton):
         side = self.iconSize().width()
         p.translate((self.width() - side) / 2, (self.height() - side) / 2)
         p.scale(side / 24, side / 24)
-        pen = QPen(theme.color("text"), 2.1)
+        pen = QPen(theme.color("accent"), 2.1)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         p.setPen(pen)
         # first the top and bottom lines slide to the middle (the middle one fading), then they turn
