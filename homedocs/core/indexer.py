@@ -181,13 +181,15 @@ def embed_pass(embedder, should_stop=lambda: False, report=lambda **info: None) 
     db = open_db()
     try:
         store.drop_other_vectors(db, embedder.key)
-        todo, done = store.count_without_vectors(db), 0
+        # counted over the whole library, so a pass that starts over carries on from where the last one got to
+        todo = store.count_passages(db)
+        done = start = todo - store.count_without_vectors(db)
         while True:
             if should_stop():
                 raise Stopped
             fetched = store.without_vectors(db, EMBED_FETCH)
             if not fetched:
-                return done
+                return done - start
             for at in range(0, len(fetched), EMBED_BATCH * 2):  # (saved as it goes; stopping waits for one)
                 if should_stop():
                     raise Stopped
@@ -326,7 +328,9 @@ class Indexer:
         self.lock = threading.Lock()
         self.thread = None
         self.stop_flag = False
-        self.again = False
+        self.busy = False  # a pass is running or about to (set and cleared under the lock, unlike thread.is_alive())
+        self.again = False  # start the running pass over
+        self.later = False  # run one more pass once the running one is done
         self.state = {
             "running": False,
             "phase": "idle",
@@ -338,13 +342,19 @@ class Indexer:
             "last_run": None,
         }
 
-    def start(self):
-        """Start a pass; if one is running, it starts over (e.g. a folder was added or removed)."""
+    def start(self, restart: bool = True):
+        """Start a pass. If one is running: restart, it starts over (e.g. a folder was added or removed);
+        otherwise it carries on and another follows it (e.g. back from another app, where files may have
+        changed: that shouldn't throw away the passages being embedded)."""
         with self.lock:
-            if self.thread and self.thread.is_alive():
-                self.again = True
+            if self.busy:
+                if restart:
+                    self.again = True
+                else:
+                    self.later = True
                 return
-            self.stop_flag = self.again = False
+            self.busy = True
+            self.stop_flag = self.again = self.later = False
             self.thread = threading.Thread(target=self._run, daemon=True, name="indexer")
             self.thread.start()
 
@@ -366,12 +376,13 @@ class Indexer:
         lock = _IndexLock()
         if not lock.acquire():
             with self.lock:
+                self.busy = False
                 self.state.update(running=False, phase="elsewhere", error=None)
             return
         try:
             while True:
                 with self.lock:
-                    self.again = False
+                    self.again = self.later = False
                     self.state.update(running=True, error=None, phase="scanning", done=0, todo=0, file=None)
                 stop = lambda: self.stop_flag or self.again  # noqa: E731
                 try:
@@ -392,7 +403,8 @@ class Indexer:
                     changed = True
                 with self.lock:
                     self.state["changes"] += changed
-                    if not self.again or self.stop_flag:
+                    if self.stop_flag or not (self.again or self.later):
+                        self.busy = False
                         self.state.update(running=False, phase="idle", file=None, last_run=time.time())
                         return
         finally:

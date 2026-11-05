@@ -99,7 +99,9 @@ def test_embedding_stops_between_batches(docs, db, monkeypatch):
     with pytest.raises(Stopped):
         embed_pass(FakeEmbedder(), should_stop=lambda: len(rounds) >= 1, report=lambda **i: rounds.append(i))
     assert db.execute("SELECT COUNT(*) FROM vectors").fetchone()[0] == 2
-    assert embed_pass(FakeEmbedder()) == 1  # carries on
+    rounds.clear()
+    assert embed_pass(FakeEmbedder(), report=lambda **i: rounds.append(i)) == 1  # carries on...
+    assert (rounds[0]["done"], rounds[0]["todo"]) == (2, 3)  # ...and so does its progress (not back to 0%)
 
 
 def test_a_question_finds_the_passage_that_answers_it(docs):

@@ -191,7 +191,10 @@ model, that library embeds at ~184 passages a second (it was ~22).
 
 In the app, `ui/indexing.py` starts a pass on opening, when the app comes back into focus (at most once a
 minute), and from the Library page's "Look for changes", and shows progress at the bottom of the sidebar
-(`ui/status.py`: a short line, a thin bar and a ✕ to stop; the full wording on hover). There's no live file watching: it's unreliable on network drives, and costs resources all the time.
+(`ui/status.py`: a short line, a thin bar and a ✕ to stop; the full wording on hover). Coming back into
+focus never interrupts a running pass (`Indexer.start(restart=False)`): another follows it. Adding or removing
+a folder does start it over, and nothing done is lost either way: embedding's progress counts every passage in
+the library, so it carries on from its percentage. There's no live file watching: it's unreliable on network drives, and costs resources all the time.
 The Library page reads `files` for its table (`library.files()`), on a worker thread.
 
 **Folders** are chosen in Settings (`ui/views/settings_dialog.py`): the folders searched, each with its file

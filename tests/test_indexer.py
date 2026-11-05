@@ -260,3 +260,27 @@ def test_the_folder_tree(tmp_path):
     assert node["total"] == 6 and sorted(node["children"]) == ["a", "c"]
     a = node["children"]["a"]
     assert a["total"] == 3 and a["children"]["b"]["path"] == os.path.join(root, "a", "b")
+
+
+def test_coming_back_to_the_window_doesnt_start_a_pass_over(docs, monkeypatch):
+    import threading
+
+    ix = indexer.Indexer()
+    gate, passes = threading.Event(), []
+    real = indexer.index_pass
+
+    def slow(should_stop, report):
+        passes.append(1)
+        if len(passes) == 1:
+            gate.wait(5)
+        return real(should_stop, report)
+
+    monkeypatch.setattr(indexer, "index_pass", slow)
+    ix.start()
+    while not passes:
+        time.sleep(0.01)
+    ix.start(restart=False)  # back from another app
+    assert not ix.again  # the running pass isn't stopped...
+    gate.set()
+    s = indexer.wait_for(ix)
+    assert len(passes) == 2 and s["phase"] == "idle"  # ...and another follows it
