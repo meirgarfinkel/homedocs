@@ -152,6 +152,10 @@ def without_vectors(db: sqlite3.Connection, limit: int) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+def count_passages(db: sqlite3.Connection) -> int:
+    return db.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
+
+
 def count_without_vectors(db: sqlite3.Connection) -> int:
     return db.execute("SELECT COUNT(*) FROM chunks WHERE id NOT IN (SELECT chunk_id FROM vectors)").fetchone()[0]
 

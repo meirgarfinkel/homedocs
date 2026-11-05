@@ -43,9 +43,12 @@ class IndexWatcher(QObject):
             self._tick()
 
     def start_if_due(self):
-        """A pass, unless one started in the last RESCAN_GAP seconds (for coming back to the window)."""
-        if folders() and time.time() - self._started > RESCAN_GAP:
-            self.start()
+        """A pass, unless one started in the last RESCAN_GAP seconds (for coming back to the window). One
+        that's running carries on, and another follows it."""
+        if folders() and time.time() - self._started > RESCAN_GAP and not self._closed:
+            self._started = time.time()
+            self.indexer.start(restart=False)
+            self._tick()
 
     def stop(self):
         self.indexer.stop()
