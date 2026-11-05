@@ -58,13 +58,15 @@ def test_the_info_panel_has_no_top_bar_button_and_closes_itself(hd, app):
         w.close()
 
 
-def test_the_layout_is_remembered(hd, app):
+def test_the_layout_is_remembered_with_the_info_panel_closed(hd, app):
     w = open_window(app)
+    w.sidebar_action.trigger()
     w.info_action.trigger()
     w.close()
     w = open_window(app)
     try:
-        assert w.info_dock.isVisible()
+        assert not w.sidebar_dock.isVisible()  # (as it was left)
+        assert not w.info_dock.isVisible()  # (always closed at start)
         assert (hd.data_dir() / "window.ini").exists()
     finally:
         w.close()

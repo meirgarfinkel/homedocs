@@ -207,6 +207,7 @@ class MainWindow(QMainWindow):
         state = self.settings.value("state")
         if state is not None:
             self.restoreState(state)
+        self.info_dock.hide()  # (closed at start: a source opens it)
         self.show_page(ASK if folders() else LIBRARY)  # (the first time: choose folders)
         QTimer.singleShot(0, self._ready)  # once the event loop has run: the window is up
         self._update_timer = QTimer(self)  # a newer HomeDocs: get it, then offer a restart
@@ -312,6 +313,7 @@ class MainWindow(QMainWindow):
         self.indexed.setObjectName("indexed")
         self.indexed_item = bar.addWidget(self.indexed)  # (shown and hidden through this)
         self.indexed_item.setVisible(False)
+        bar.addWidget(_spacer(10))  # (more room before the menu)
         self.more_button = MenuButton()
         self.more_button.setAccessibleName("Menu")
         self.more_menu = QMenu(self.more_button)
