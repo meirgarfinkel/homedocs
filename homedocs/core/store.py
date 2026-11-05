@@ -156,16 +156,32 @@ def count_without_vectors(db: sqlite3.Connection) -> int:
     return db.execute("SELECT COUNT(*) FROM chunks WHERE id NOT IN (SELECT chunk_id FROM vectors)").fetchone()[0]
 
 
-def save_vectors(db: sqlite3.Connection, model: str, chunk_ids: list[int], vecs):
-    """Save vectors for passages (any since removed are skipped)."""
+def digest(text: str) -> bytes:
+    """A fingerprint of the text a passage's vector is made from: the same text, the same vector."""
+    import hashlib
+
+    return hashlib.blake2b(text.encode("utf-8"), digest_size=16).digest()
+
+
+def known_vectors(db: sqlite3.Connection, model: str, digests) -> dict[bytes, bytes]:
+    """{digest: vector} for the texts this model already made a vector of (copies of a passage)."""
+    digests = list(set(digests))
+    marks = ",".join("?" * len(digests))
+    return dict(
+        db.execute(f"SELECT digest, vec FROM vectors WHERE model = ? AND digest IN ({marks})", (model, *digests))
+    )
+
+
+def save_vectors(db: sqlite3.Connection, model: str, chunk_ids: list[int], vecs, digests: list[bytes]):
+    """Save vectors for passages (any since removed are skipped). vecs: float32 rows, or their bytes."""
     import numpy as np
 
-    vecs = np.asarray(vecs, dtype=np.float32)
+    rows = [v if isinstance(v, bytes) else np.asarray(v, dtype=np.float32).tobytes() for v in vecs]
     with db:
         db.executemany(
-            "INSERT OR REPLACE INTO vectors (chunk_id, model, vec) SELECT ?, ?, ? WHERE EXISTS "
+            "INSERT OR REPLACE INTO vectors (chunk_id, model, vec, digest) SELECT ?, ?, ?, ? WHERE EXISTS "
             "(SELECT 1 FROM chunks WHERE id = ?)",
-            [(cid, model, vecs[i].tobytes(), cid) for i, cid in enumerate(chunk_ids)],
+            [(cid, model, rows[i], digests[i], cid) for i, cid in enumerate(chunk_ids)],
         )
 
 

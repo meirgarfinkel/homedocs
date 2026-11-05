@@ -176,7 +176,8 @@ def _index_pass(db, roots, should_stop, report, left=()) -> dict:
 
 
 def embed_pass(embedder, should_stop=lambda: False, report=lambda **info: None) -> int:
-    """Give every passage without a vector one. Returns how many were embedded; raises Stopped."""
+    """Give every passage without a vector one: a copy of a passage already embedded (the same file name,
+    headings and text) reuses its vector. Returns how many passages got one; raises Stopped."""
     db = open_db()
     try:
         store.drop_other_vectors(db, embedder.key)
@@ -193,7 +194,14 @@ def embed_pass(embedder, should_stop=lambda: False, report=lambda **info: None) 
                 rows = fetched[at : at + EMBED_BATCH * 2]
                 report(phase="embedding", done=done, todo=todo, file=None)
                 texts = [store.embed_text(r["name"], r["heading"], r["text"]) for r in rows]
-                store.save_vectors(db, embedder.key, [r["id"] for r in rows], embedder.embed(texts, EMBED_BATCH))
+                digests = [store.digest(t) for t in texts]
+                vecs = store.known_vectors(db, embedder.key, digests)
+                new = {d: t for d, t in zip(digests, texts, strict=True) if d not in vecs}  # (once each)
+                if new:
+                    made = embedder.embed(list(new.values()), EMBED_BATCH)
+                    vecs.update((d, v.tobytes()) for d, v in zip(new, made, strict=True))
+                ids = [r["id"] for r in rows]
+                store.save_vectors(db, embedder.key, ids, [vecs[d] for d in digests], digests)
                 done += len(rows)
                 todo = max(todo, done)
     finally:

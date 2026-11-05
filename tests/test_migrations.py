@@ -110,16 +110,16 @@ def test_a_database_from_0_2_0_keeps_its_passages_and_gains_vectors(hd, monkeypa
     db = hd.open_db()
     assert db.execute("PRAGMA user_version").fetchone()[0] == dbmod.VERSION
     assert db.execute("SELECT text FROM chunks").fetchone()[0] == "hello"
-    assert dbmod.columns(db, "vectors") == ["chunk_id", "model", "vec"]
+    assert dbmod.columns(db, "vectors") == ["chunk_id", "model", "vec", "digest"]
     db.close()
     (backup,) = (hd.data_dir() / "backups").iterdir()
     assert backup.name.startswith("homedocs-v2-")
 
 
-def test_a_database_from_0_3_0_keeps_its_vectors_and_gains_questions(hd, monkeypatch):
+def test_a_database_from_0_3_0_gains_questions_and_embeds_again(hd, monkeypatch):
     monkeypatch.setattr(dbmod, "_ready_dbs", set())
     with sqlite3.connect(dbmod.db_file()) as raw:  # what 0.3.0 made: version 3, with a passage embedded
-        for create in [*dbmod.V2_TABLES.values(), dbmod.TABLES["vectors"]]:
+        for create in [*dbmod.V2_TABLES.values(), dbmod.V3_VECTORS]:
             raw.execute(create)
         raw.execute("INSERT INTO files (path, name, size, mtime, status) VALUES ('/a.txt', 'a.txt', 1, 1, 'indexed')")
         raw.execute("INSERT INTO chunks (file_id, seq, char_start, char_end, text) VALUES (1, 0, 0, 5, 'hello')")
@@ -128,7 +128,7 @@ def test_a_database_from_0_3_0_keeps_its_vectors_and_gains_questions(hd, monkeyp
     raw.close()
     db = hd.open_db()
     assert db.execute("PRAGMA user_version").fetchone()[0] == dbmod.VERSION
-    assert db.execute("SELECT model FROM vectors").fetchone()[0] == "m"
+    assert db.execute("SELECT COUNT(*) FROM vectors").fetchone()[0] == 0  # (another model's: made again)
     assert dbmod.columns(db, "questions") == ["id", "asked", "question", "answer", "passages", "sources"]
     db.close()
     (backup,) = (hd.data_dir() / "backups").iterdir()
@@ -138,7 +138,7 @@ def test_a_database_from_0_3_0_keeps_its_vectors_and_gains_questions(hd, monkeyp
 def test_a_database_from_0_4_reads_its_files_again_for_the_shorter_passages(hd, monkeypatch):
     monkeypatch.setattr(dbmod, "_ready_dbs", set())
     with sqlite3.connect(dbmod.db_file()) as raw:  # what 0.4 made: version 4, a file read and one skipped
-        for create in [*dbmod.V2_TABLES.values(), dbmod.TABLES["vectors"], dbmod.TABLES["questions"]]:
+        for create in [*dbmod.V2_TABLES.values(), dbmod.V3_VECTORS, dbmod.TABLES["questions"]]:
             raw.execute(create)
         raw.execute(
             "INSERT INTO files (path, name, size, mtime, hash, status) VALUES ('/a.txt', 'a.txt', 1, 1, 'h', 'indexed')"
@@ -151,4 +151,21 @@ def test_a_database_from_0_4_reads_its_files_again_for_the_shorter_passages(hd, 
     rows = db.execute("SELECT status, hash FROM files ORDER BY id").fetchall()
     assert [tuple(r) for r in rows] == [("pending", None), ("skipped", None)]
     assert db.execute("SELECT text FROM chunks").fetchone()[0] == "hello"  # (searched until it's read again)
+    db.close()
+
+
+def test_a_database_from_0_8_embeds_again_with_fingerprints(hd, monkeypatch):
+    monkeypatch.setattr(dbmod, "_ready_dbs", set())
+    with sqlite3.connect(dbmod.db_file()) as raw:  # what 0.8 made: version 5, with bge-small's vectors
+        for create in [*dbmod.V2_TABLES.values(), dbmod.V3_VECTORS, dbmod.TABLES["questions"]]:
+            raw.execute(create)
+        raw.execute("INSERT INTO files (path, name, size, mtime, status) VALUES ('/a.txt', 'a.txt', 1, 1, 'indexed')")
+        raw.execute("INSERT INTO chunks (file_id, seq, char_start, char_end, text) VALUES (1, 0, 0, 5, 'hello')")
+        raw.execute("INSERT INTO vectors (chunk_id, model, vec) VALUES (1, 'bge-small-en-v1.5-int8', x'00000000')")
+        raw.execute("PRAGMA user_version = 5")
+    raw.close()
+    db = hd.open_db()
+    assert dbmod.columns(db, "vectors") == ["chunk_id", "model", "vec", "digest"]
+    assert db.execute("SELECT COUNT(*) FROM vectors").fetchone()[0] == 0
+    assert db.execute("SELECT text FROM chunks").fetchone()[0] == "hello"
     db.close()

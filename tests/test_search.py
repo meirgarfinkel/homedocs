@@ -62,6 +62,27 @@ def test_vectors_follow_the_files(docs, db):
     assert db.execute(orphans).fetchone()[0] == 0
 
 
+def test_a_copy_of_a_passage_reuses_its_vector(docs, db):
+    class Counting(FakeEmbedder):
+        texts = 0
+
+        def embed(self, texts, batch=8):
+            Counting.texts += len(texts)
+            return super().embed(texts, batch)
+
+    for i in range(3):  # three copies of a file in other folders: the same name and text
+        (docs / f"copy{i}").mkdir()
+        shutil.copy(docs / "car.md", docs / f"copy{i}" / "car.md")
+    index_pass()
+    assert embed_pass(Counting()) == 6  # every passage has a vector...
+    assert Counting.texts == 3  # ...but the copies' text was embedded once
+    vecs = db.execute(
+        "SELECT DISTINCT v.vec FROM vectors v JOIN chunks c ON c.id = v.chunk_id JOIN files f ON f.id = c.file_id "
+        "WHERE f.name = 'car.md'"
+    ).fetchall()
+    assert len(vecs) == 1
+
+
 def test_another_models_vectors_are_made_again(docs, db):
     embed_pass(FakeEmbedder())
 
