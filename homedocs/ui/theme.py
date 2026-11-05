@@ -314,6 +314,7 @@ QTreeWidget#sidebar {{ background: {side}; color: {sideText}; border: none; padd
 QTreeWidget#sidebar::item {{ min-height: 28px; padding: 0 8px; border: none; border-radius: 14px;
     color: {sideText}; }}
 QTreeWidget#sidebar::item:hover {{ background: {hover}; }}
+QTreeWidget#sidebar::item:disabled:hover {{ background: transparent; }}
 QTreeWidget#sidebar::item:selected {{ background: {selected}; color: {sideStrong}; }}
 QTreeWidget#sidebar::branch {{ background: {side}; image: none; border-image: none; }}
 
@@ -571,12 +572,12 @@ def _pixmap(name: str, col: QColor, px: int = 20, dpr: float = 2.0) -> QPixmap:
     return pm
 
 
-def icon(name: str, colour: str = "text") -> QIcon:
-    """In the text colour (or another), and the accent's when checked."""
+def icon(name: str, colour: str = "text", checked: str = "accentText") -> QIcon:
+    """In the text colour (or another), and the accent's (or checked's) when checked."""
     ic = QIcon()
     ic.addPixmap(_pixmap(name, color(colour)), QIcon.Mode.Normal, QIcon.State.Off)
     ic.addPixmap(_pixmap(name, color(colour)), QIcon.Mode.Selected, QIcon.State.Off)  # (not tinted)
-    ic.addPixmap(_pixmap(name, color("accentText")), QIcon.Mode.Normal, QIcon.State.On)
+    ic.addPixmap(_pixmap(name, color(checked)), QIcon.Mode.Normal, QIcon.State.On)
     ic.addPixmap(_pixmap(name, color("muted")), QIcon.Mode.Disabled, QIcon.State.Off)
     return ic
 
