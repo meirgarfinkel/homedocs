@@ -133,9 +133,9 @@ def set_setting(name: str, value):
 
 def index_key(docs: Path) -> str:
     """What the index depends on: the documents, the splitting settings and code, and the embedder."""
-    from . import config
+    from . import config, models
 
-    h = hashlib.sha256()
+    h = hashlib.sha256(models.EMBEDDER.key.encode())
     for p in sorted(docs.rglob("*")):
         if p.is_file():
             h.update(f"{p.relative_to(docs)}:{_sha256(p)}".encode())

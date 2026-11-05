@@ -164,7 +164,7 @@ Measured on a 2021 laptop (Intel i7-1165G7, 4 cores) where there's a measurement
 | Keyword + vector search | < 50 ms | a few ms |
 | Re-rank the candidates | < 300 ms | ~0.2 s: 20 candidates of 60 words, read whole, 8-bit model. The whole search takes 0.25 s typical, 0.6 s at most (95 eval questions) |
 | Question to passages on screen | < 1 s | ~0.4 s |
-| Embedding while indexing (background) | — | 7–11 passages/s on half the cores: ~30 min for 15,000 passages |
+| Embedding while indexing (background) | — | ~65 passages/s on half the cores (measured on a real 620,000-passage library): the 8-bit model, and the passages to embed fetched 512 at a time (fetching them 16 at a time took as long as embedding them). It was ~22/s before. ~4 min for 15,000 passages |
 | First word of the answer | ≤ 5 s | 4.9 s typical, 7.1 s at most (95 eval questions asked back to back, so the laptop is hot). The passages read are capped at 1,800 characters (~550 tokens), read at ~120 tokens/s; the instructions are read once and kept. With 300-word passages on real-length documents it was 10.5 s. The earlier target of 2 s isn't reachable with a 1.7B model on this CPU |
 | Writing the answer | ≥ 10 tokens/s | ~20–22 tokens/s; a whole answer in 3–7 s |
 
@@ -174,11 +174,11 @@ starts sooner, but may leave out what the answer needs; the evals would have to 
 ## Models (downloaded on first run)
 
 Pinned to exact files (by sha256, in `core/models.py`). Each licence allows use and redistribution. About
-1.3 GB in all.
+1.2 GB in all.
 
 | Role | Model | Size | Runtime |
 |---|---|---|---|
-| Embeddings | bge-small-en-v1.5 (MIT) | 133 MB | ONNX Runtime |
+| Embeddings | bge-small-en-v1.5 (MIT), 8-bit (Xenova's conversion): the same eval scores as full precision, 1.5x faster | 34 MB | ONNX Runtime |
 | Reranker | ms-marco-MiniLM-L-6-v2 cross-encoder (Apache 2.0), 8-bit | 23 MB | ONNX Runtime |
 | Chat | Qwen3-1.7B (Apache 2.0), thinking off, Q4_K_M GGUF | 1.1 GB | llama.cpp, through our own small bindings |
 

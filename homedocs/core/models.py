@@ -49,19 +49,22 @@ class Model:
 
 
 _BGE = f"{HF}/BAAI/bge-small-en-v1.5/resolve/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a"
+_BGE_8BIT = f"{HF}/Xenova/bge-small-en-v1.5/resolve/ea104dacec62c0de699686887e3f920caeb4f3e3"  # (BAAI has none)
 _MARCO = f"{HF}/cross-encoder/ms-marco-MiniLM-L6-v2/resolve/233902d25c440f23af6f7d6e94d2946bac0bee0a"
 _VOCAB_SHA = "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3"  # (the same file in both)
 
+# The 8-bit version (Xenova's conversion of BAAI's model): 1.5x faster to index a big library, with the same eval
+# scores as full precision.
 EMBEDDER = Model(
-    "bge-small-en-v1.5",
-    "bge-small-en-v1.5 (BAAI)",
+    "bge-small-en-v1.5-int8",
+    "bge-small-en-v1.5 (BAAI), 8-bit",
     "MIT",
     (
         ModelFile(
             "model.onnx",
-            f"{_BGE}/onnx/model.onnx",
-            "828e1496d7fabb79cfa4dcd84fa38625c0d3d21da474a00f08db0f559940cf35",
-            133093490,
+            f"{_BGE_8BIT}/onnx/model_quantized.onnx",
+            "6c9c6101a956d62dfb5e7190c538226c0c5bb9cb27b651234b6df063ee7dbfe4",
+            34014426,
         ),
         ModelFile("vocab.txt", f"{_BGE}/vocab.txt", _VOCAB_SHA, 231508),
     ),
@@ -83,6 +86,7 @@ RERANKER = Model(
     ),
 )
 MODELS = (EMBEDDER, RERANKER)
+
 
 # Qwen3-1.7B, 4-bit (Q4_K_M), as converted by Unsloth (Qwen publishes only an 8-bit file of the small Qwen3s).
 # Chosen by the test in REQUIREMENTS.md: the only model tried that got all 20 questions right.

@@ -30,7 +30,7 @@ import threading
 import time
 
 from . import parsers, passages, store
-from .config import EMBED_BATCH, FILE_TYPES, MAX_FILE_MB, data_dir
+from .config import EMBED_BATCH, EMBED_FETCH, FILE_TYPES, MAX_FILE_MB, data_dir
 from .db import open_db
 from .settings import folders, left_out
 from .util import folder_prefix, inside, lower_priority, within
@@ -184,14 +184,18 @@ def embed_pass(embedder, should_stop=lambda: False, report=lambda **info: None) 
         while True:
             if should_stop():
                 raise Stopped
-            rows = store.without_vectors(db, EMBED_BATCH * 2)
-            if not rows:
+            fetched = store.without_vectors(db, EMBED_FETCH)
+            if not fetched:
                 return done
-            report(phase="embedding", done=done, todo=todo, file=None)
-            vecs = embedder.embed([store.embed_text(r["name"], r["heading"], r["text"]) for r in rows], EMBED_BATCH)
-            store.save_vectors(db, embedder.key, [r["id"] for r in rows], vecs)
-            done += len(rows)
-            todo = max(todo, done)
+            for at in range(0, len(fetched), EMBED_BATCH * 2):  # (saved as it goes; stopping waits for one)
+                if should_stop():
+                    raise Stopped
+                rows = fetched[at : at + EMBED_BATCH * 2]
+                report(phase="embedding", done=done, todo=todo, file=None)
+                texts = [store.embed_text(r["name"], r["heading"], r["text"]) for r in rows]
+                store.save_vectors(db, embedder.key, [r["id"] for r in rows], embedder.embed(texts, EMBED_BATCH))
+                done += len(rows)
+                todo = max(todo, done)
     finally:
         db.close()
 
