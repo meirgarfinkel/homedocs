@@ -187,3 +187,29 @@ def test_the_hidden_library_waits_to_be_shown_before_reading_the_files(hd, app, 
         wait_until(app, lambda: reads)
     finally:
         w.close()
+
+
+def test_the_folders_under_library_in_the_sidebar(hd, app, folder):
+    from homedocs.ui.views.sidebar import COUNT_ROLE, FOLDER_ROLE
+
+    w = open_window(app)
+    lib, sb = w.library_page, w.sidebar
+    try:
+        lib.add(str(folder))
+        wait_until(app, lambda: sb.library.childCount() == 1 and not w.watcher.running())
+        wait_until(app, lambda: sb.library.data(0, COUNT_ROLE) == "3")
+        docs = sb.library.child(0)
+        assert docs.text(0) == "docs" and docs.data(0, FOLDER_ROLE) == str(folder)
+        assert docs.childCount() == 1 and docs.child(0).text(0) == "…"  # (made when it's opened)
+        docs.setExpanded(True)
+        (taxes,) = [docs.child(i) for i in range(docs.childCount())]
+        assert taxes.text(0) == "taxes" and taxes.data(0, COUNT_ROLE) == "1"
+        sb.setCurrentItem(taxes)  # (a click)
+        assert w.stack.currentWidget() is lib and w.page_title.text() == "taxes"
+        wait_until(app, lambda: list(rows(lib)) == ["2025 return.pdf"])
+        assert w.count_label.text() == "1 file"
+        w.sidebar.setCurrentItem(sb.library)  # the whole library again
+        wait_until(app, lambda: len(rows(lib)) == 3)
+        assert w.page_title.text() == "Library"
+    finally:
+        w.close()
