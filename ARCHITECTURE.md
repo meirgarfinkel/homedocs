@@ -114,8 +114,7 @@ sha256, size, and the licence. Both search models use the same vocabulary, so on
 
 - **Embedder:** bge-small-en-v1.5, the 8-bit version (34 MB, Xenova's conversion: BAAI publishes only full
   precision). It scored the same as full precision on both eval sets (82/89 and 32/37 passages found, the same
-  questions missed) and embeds 1.5x faster. Changing it re-embeds every passage; the old model's files are
-  deleted (`models.RETIRED`). Questions get bge's query prefix; passages are
+  questions missed) and embeds 1.5x faster. Questions get bge's query prefix; passages are
   embedded as `file name > headings` then the text, and the [CLS] output is normalized.
 - **Re-ranker:** ms-marco-MiniLM-L6-v2, the 8-bit version (23 MB): about 40% faster than full precision, which
   re-ranking needs (see the speed budget in REQUIREMENTS.md). It reads each passage's first

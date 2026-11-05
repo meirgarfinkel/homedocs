@@ -58,7 +58,6 @@ class ModelLoader(QObject):
             (signal or self.progress).emit(done, total)
 
     def _download_and_load(self):
-        models.remove_retired()  # (a newer model replaced one: its files go)
         if not models.download(models.MODELS, self._report, lambda: self._stop):
             return None
         return self._load()

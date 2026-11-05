@@ -86,15 +86,6 @@ RERANKER = Model(
     ),
 )
 MODELS = (EMBEDDER, RERANKER)
-RETIRED = ("bge-small-en-v1.5",)  # folders of models HomeDocs no longer uses (full precision: replaced by 8-bit)
-
-
-def remove_retired():
-    """Delete the files of models HomeDocs no longer uses (only those named in RETIRED, in its own folder)."""
-    import shutil
-
-    for key in RETIRED:
-        shutil.rmtree(data_dir() / "models" / key, ignore_errors=True)
 
 
 # Qwen3-1.7B, 4-bit (Q4_K_M), as converted by Unsloth (Qwen publishes only an 8-bit file of the small Qwen3s).
