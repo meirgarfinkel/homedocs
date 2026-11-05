@@ -1,4 +1,4 @@
-"""The window: the sidebar switches pages, the side panels toggle with their rounded corners, and the
+"""The window: the sidebar switches pages, its switch stays put, the Info panel opens and closes, and the
 layout is remembered."""
 
 from conftest import open_window
@@ -31,15 +31,29 @@ def test_the_sidebar_switches_pages(hd, app, tmp_path):
         w.close()
 
 
-def test_corners_follow_the_side_panels(hd, app):
+def test_the_sidebar_switch_stays_put(hd, app):
     w = open_window(app)
     try:
-        left, right = w.corners
-        assert left.isVisible() and not right.isVisible()  # the info panel starts closed
-        w.info_action.trigger()
-        assert right.isVisible()
+        app.processEvents()
+        at = w.sidebar_button.mapTo(w, w.sidebar_button.rect().topLeft())
         w.sidebar_action.trigger()
-        assert not left.isVisible()
+        app.processEvents()
+        assert not w.sidebar_dock.isVisible()
+        assert w.sidebar_button.mapTo(w, w.sidebar_button.rect().topLeft()) == at
+    finally:
+        w.close()
+
+
+def test_the_info_panel_has_no_top_bar_button_and_closes_itself(hd, app):
+    from PySide6.QtWidgets import QToolBar
+
+    w = open_window(app)
+    try:
+        assert w.info_action not in w.findChild(QToolBar, "main").actions()
+        w.info_action.trigger()  # (Ctrl+I)
+        assert w.info_dock.isVisible()
+        w.info.close_button.click()
+        assert not w.info_dock.isVisible()
     finally:
         w.close()
 

@@ -1,5 +1,5 @@
-"""The toolbar's menu: one list (no submenus), rows that say what they do, and the button's lines
-turning into an X while it's open."""
+"""The top bar's menu: one list (no submenus), rows that say what they do, opening leftward, and the
+button's lines turning into an X while it's open."""
 
 from conftest import open_window, wait_until
 from PySide6.QtCore import QTimer
@@ -50,6 +50,23 @@ def test_nothing_lit_until_pointed_at(hd, app):
         assert not any(r.property("active") for r in rows.values())
         m.setActiveAction(rows["Library"].item)  # (what pointing at it, or the arrow keys, does)
         assert [t for t, r in rows.items() if r.property("active")] == ["Library"]
+    finally:
+        w.close()
+
+
+def test_opens_leftward_inside_the_window(hd, app):
+    w = open_window(app)
+    try:
+        button, m, seen = w.more_button, w.more_menu, []
+
+        def look():
+            seen.append((m.geometry().right(), button.mapToGlobal(button.rect().bottomRight()).x()))
+            m.close()
+
+        QTimer.singleShot(50, look)
+        button.showMenu()
+        (menu_right, button_right) = seen[0]
+        assert menu_right <= button_right
     finally:
         w.close()
 

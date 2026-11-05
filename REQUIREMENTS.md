@@ -103,10 +103,46 @@ every other step is tuned for it, against a test set much harder than the 20 que
 | First run: pick a folder, download the models with a progress bar, then indexing starts | v1 |
 | A failed or interrupted download resumes; a file that fails its sha256 check is deleted and fetched again | v1 |
 | Ask page (the main view), Library page (every file, its status, passage count, and failures with the reason) | v1 |
-| HomePix's look: same theme tokens, layout (band and well), font, drawn icons; Dark, Light or match the system | v1 |
+| The Paper look (below): Dark, Light or match the system | v1 |
 | Checks for updates quietly after start and from the menu; updates itself per install type | v1 |
 | One copy at a time | v1 |
 | `--self-test` checks the bundle: llama.cpp loads a tiny model and generates, both ONNX models load, the window opens | v1 |
+
+### The look: Paper (agreed 2026-11-05)
+
+Modelled on Notion: flat, quiet, a tinted top bar and sidebar around a plain page, no lines between them. It
+replaces HomePix's sand-on-ink look. The design board: https://claude.ai/artifact/8EJyAvqhzeFWMWixAU6TKc
+(the Paper board).
+
+| | Dark (default) | Light |
+|---|---|---|
+| Page | `#14171C` | `#FFFFFF` |
+| Top bar and sidebar (one tint, no line between them or under the bar) | `#1A1E24` | `#F5F7FA` |
+| Fields, Copy button, the chosen passage card | `#242930` | `#EEF1F5` |
+| Lines (where there are any) | `#2B3139` | `#E3E7ED` |
+| Text | `#E4E8EE` | `#1F2733` |
+| Muted text | `#98A2AF` | `#5D6979` |
+| Sidebar text: plain white or ink, not blue-grey (the chosen page brighter, the "Recent questions" heading dimmer) | white at 80% | ink at 80% |
+| Accent (citation numbers, icons) | `#DDB088` apricot | `#966230` |
+| Accent fill (buttons, white text on it) | `#966230` | `#966230` |
+| "15 files indexed" | `#86D9A6` light green | `#2E8A55` |
+| The supporting sentence's highlight (and the question's words, in bold) | white at 10% | ink at 9% (`#F1F1EF` vanished on the tinted Info panel) |
+
+- **Font:** Inter for everything, answers included (bundled, OFL), in place of Plus Jakarta Sans.
+- **Sizes:** the question as a 22 px title over the answer; the answer 16 px; the rest 14 px, small text 12–13 px.
+- **Shape:** 14 px corners on cards and buttons, 16 px on the ask box.
+- **Top bar:** on the left, over the sidebar: the show/hide sidebar button at the far left (it stays put
+  whether the sidebar is open or not), and the HomeDocs icon (`homedocs-icon.svg`) with the name, centred over
+  the sidebar. The ask box in the middle. On the right, the indexed-files count, then the menu (☰) at the
+  far end; the menu opens leftward, inside the window. No Info button.
+- **Sidebar:** 180 px. Ask and Library with icons, then "Recent questions".
+- **Icons:** thin line icons in the accent colour.
+- **Answer:** the question title, "Answer" and Copy, then the answer with superscript source numbers in the
+  accent colour. No timing line.
+- **Passages:** "Passages · 4 of 8", then rounded cards with a file icon, the file name and place, and two
+  lines of the passage; the top card one step lighter.
+- **The Info panel** stays (clicking a source number or passage opens it, with the sentence highlighted), but
+  it has no button in the top bar; it closes with its own ✕ or Ctrl+I.
 
 ## Speed budget (typical laptop CPU)
 

@@ -1,13 +1,15 @@
-"""The main window: the toolbar (with the question box), the sidebar, the Ask and Library pages, the info
-panel at the side, and the status pill over the page's corner."""
+"""The main window: the top bar (the sidebar switch and the name over the sidebar, the question box, the
+indexed-files count and the menu), the sidebar, the Ask and Library pages, the Info panel at the side, and the
+status pill over the page's corner."""
 
 import time
 
-from PySide6.QtCore import QEvent, QObject, QRect, QRectF, QSettings, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QKeySequence, QPainter, QPainterPath
+from PySide6.QtCore import QRect, QSettings, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QAction, QKeySequence, QPainter
 from PySide6.QtWidgets import (
     QApplication,
     QDockWidget,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -16,6 +18,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QStackedWidget,
     QToolBar,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -36,58 +39,8 @@ from .views.ask import AskPage
 from .views.library import LibraryPage
 from .views.passage_panel import PassagePanel
 from .views.settings_dialog import SettingsDialog
-from .views.sidebar import ASK, LIBRARY, PAGES, Sidebar
+from .views.sidebar import ASK, LIBRARY, PAGES, WIDTH, Sidebar
 from .views.update_bar import UpdateBar
-
-
-class _Corner(QWidget):
-    """A rounded top corner of the page, where it meets the toolbar and a side panel: the panels'
-    colour painted outside a quarter circle, so the page sits in a well inside one band."""
-
-    RADIUS = 16
-
-    def __init__(self, page: QWidget, right: bool):
-        super().__init__(page)
-        self.right = right
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.setFixedSize(self.RADIUS, self.RADIUS)
-        page.installEventFilter(self)
-        self._place()
-
-    def eventFilter(self, obj, e):  # noqa: N802 (Qt's name)
-        if e.type() == QEvent.Type.Resize:
-            self._place()
-        return False
-
-    def _place(self):
-        self.move(self.parentWidget().width() - self.RADIUS if self.right else 0, 0)
-        self.raise_()
-
-    def paintEvent(self, _):  # noqa: N802 (Qt's name)
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        r = self.RADIUS
-        outside, rounded = QPainterPath(), QPainterPath()
-        outside.addRect(QRectF(0, 0, r, r))
-        x = -r if self.right else 0
-        rounded.addEllipse(QRectF(x, 0, 2 * r, 2 * r))
-        p.fillPath(outside.subtracted(rounded), theme.color("side"))
-
-
-class _CornerSwitch(QObject):
-    """Shows a corner only while its side panel is open."""
-
-    def __init__(self, corner: _Corner, dock: QDockWidget):
-        super().__init__(corner)
-        self.corner, self.dock = corner, dock
-        dock.installEventFilter(self)
-        corner.setVisible(dock.isVisible())
-
-    def eventFilter(self, obj, e):  # noqa: N802 (Qt's name)
-        if e.type() in (QEvent.Type.Show, QEvent.Type.Hide):
-            self.corner.setVisible(self.dock.isVisible())
-            self.corner.raise_()
-        return False
 
 
 def _spacer(width: int, stretch: bool = False) -> QWidget:
@@ -229,6 +182,8 @@ class MainWindow(QMainWindow):
         self.sidebar.reopen.connect(self.reopen_question)
         self.ask_page.choose_folders.connect(lambda: (self.show_page(LIBRARY), self.library_page.add_folder()))
         self.ask_page.retry.connect(self._retry_models)
+        self.info.closed.connect(self.info_dock.hide)
+        self.watcher.changed.connect(self._count_indexed)
         self.library_page.folders_changed.connect(self._update_note)
         self._model_problem = None
         self._reloaded = 0.0
@@ -239,9 +194,6 @@ class MainWindow(QMainWindow):
         self.library_page.folders_changed.connect(self.watcher.start)
         self.library_page.rescan.connect(self.watcher.start)
         QApplication.instance().applicationStateChanged.connect(self._app_state)
-        self.corners = [_Corner(central, right) for right in (False, True)]
-        for corner, dock in zip(self.corners, (self.sidebar_dock, self.info_dock), strict=True):
-            _CornerSwitch(corner, dock)
         self.status_pill.raise_()
         theme.signals.changed.connect(self._restyle)
         self._restyle()
@@ -268,6 +220,14 @@ class MainWindow(QMainWindow):
         self.models.start()  # downloaded the first time, then loaded
         self.watcher.start_if_due()  # look for new and changed files
         workers.run(_recent, lambda rows, err: rows and self.sidebar.set_recent(rows))
+        self._count_indexed()
+
+    def _count_indexed(self):
+        def show(n, err):
+            self.indexed.setText(f"{n:,} file{'s' if n != 1 else ''} indexed" if n else "")
+            self.indexed_item.setVisible(bool(n))
+
+        workers.run(_indexed, show)
 
     def _app_state(self, state):
         if state == Qt.ApplicationState.ApplicationActive and self.loaded:
@@ -288,38 +248,52 @@ class MainWindow(QMainWindow):
 
     def _restyle(self):
         """The icons, after the colours changed."""
-        self.sidebar_action.setIcon(theme.icon("sidebar"))
-        self.info_action.setIcon(theme.icon("info"))
-        self.ask_box.icon = theme.icon("ask")
+        self.sidebar_action.setIcon(theme.icon("sidebar", "accent"))
+        self.ask_box.icon = theme.icon("search", "accent")
         self.ask_box.clear_icon = theme.icon("clear", "muted")
         self.ask_box.update()
         self.brand.setPixmap(theme.brand_mark())
-        for corner in getattr(self, "corners", ()):
-            corner.update()
+        self.sidebar.restyle()
 
     def _build_toolbar(self):
         bar = QToolBar("Main", self)
         bar.setObjectName("main")
         bar.setMovable(False)
         bar.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
-        bar.setIconSize(QSize(20, 20))
-        bar.setFixedHeight(60)
+        bar.setIconSize(QSize(18, 18))
+        bar.setFixedHeight(52)
         self.addToolBar(bar)
-        bar.addWidget(_spacer(6))
-        self.brand = QLabel()
-        bar.addWidget(self.brand)
-        name = QLabel("HomeDocs")
-        name.setObjectName("brand")
-        bar.addWidget(name)
-        bar.addWidget(_spacer(14))
+        # over the sidebar: its switch at the far left (it stays put, open or closed), the name centred
+        left = QWidget()
+        left.setFixedWidth(WIDTH)
+        grid = QGridLayout(left)
+        grid.setContentsMargins(0, 0, 0, 0)
         self.sidebar_action = self.sidebar_dock.toggleViewAction()
         self.sidebar_action.setText("Sidebar")
-        bar.addAction(self.sidebar_action)
+        self.sidebar_button = QToolButton()
+        self.sidebar_button.setDefaultAction(self.sidebar_action)
+        self.sidebar_button.setAccessibleName("Show or hide the sidebar")
+        holder = QHBoxLayout()
+        holder.setContentsMargins(8, 0, 0, 0)
+        holder.addWidget(self.sidebar_button)
+        holder.addStretch()
+        grid.addLayout(holder, 0, 0)
+        brand = QWidget()
+        row = QHBoxLayout(brand)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(8)
+        self.brand = QLabel()
+        name = QLabel("HomeDocs")
+        name.setObjectName("brand")
+        row.addWidget(self.brand)
+        row.addWidget(name)
+        grid.addWidget(brand, 0, 0, Qt.AlignmentFlag.AlignCenter)
+        bar.addWidget(left)
         bar.addWidget(_spacer(0, stretch=True))
         self.ask_box = AskBox()
         self.ask_box.setObjectName("search")
         self.ask_box.setPlaceholderText("Ask your documents")
-        self.ask_box.setMinimumWidth(380)
+        self.ask_box.setMinimumWidth(320)
         self.ask_box.setMaximumWidth(620)
         self.ask_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.ask_box.escaped.connect(self.ask_box.clearFocus)
@@ -330,13 +304,14 @@ class MainWindow(QMainWindow):
         find.setShortcut(QKeySequence.StandardKey.Find)
         find.triggered.connect(lambda: (self.ask_box.setFocus(), self.ask_box.selectAll()))
         self.addAction(find)
-        info = self.info_action = self.info_dock.toggleViewAction()
+        info = self.info_action = self.info_dock.toggleViewAction()  # no button: a source opens it
         info.setText("Info")
         info.setShortcut(QKeySequence("Ctrl+I"))
-        bar.addAction(info)
-        button = bar.widgetForAction(info)  # words beside the icon
-        button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        button.setProperty("label", True)
+        self.addAction(info)
+        self.indexed = QLabel()
+        self.indexed.setObjectName("indexed")
+        self.indexed_item = bar.addWidget(self.indexed)  # (shown and hidden through this)
+        self.indexed_item.setVisible(False)
         self.more_button = MenuButton()
         self.more_button.setAccessibleName("Menu")
         self.more_menu = QMenu(self.more_button)
@@ -369,6 +344,7 @@ class MainWindow(QMainWindow):
     def show_page(self, place: str):
         self.stack.setCurrentWidget(self.pages[place])
         self.page_title.setText(PAGES[place])
+        self.page_header.setVisible(place != ASK)  # (the Ask page's title is the question)
         self.count_label.setText("")
         if place == LIBRARY:
             self.library_page.reload()
@@ -569,6 +545,14 @@ def _recent():
     db = open_db()
     try:
         return answers.recent(db)
+    finally:
+        db.close()
+
+
+def _indexed():
+    db = open_db()
+    try:
+        return db.execute("SELECT COUNT(*) FROM files WHERE status = 'indexed'").fetchone()[0]
     finally:
         db.close()
 

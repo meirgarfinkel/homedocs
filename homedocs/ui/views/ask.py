@@ -1,6 +1,6 @@
-"""The Ask page: the answer to the question asked in the toolbar's box, written from the passages found, with
-each sentence linked to the passage sentence that backs it; then the passages, each with its file, its place in
-the file and the question's words highlighted. Clicking a link or a passage opens it in the Info panel."""
+"""The Ask page: the question as its title, then the answer written from the passages found, each sentence
+followed by the number of the passage that backs it; then the passages, each with its file, its place in the
+file and the question's words highlighted. Clicking a number or a passage opens it in the Info panel."""
 
 import html
 import re
@@ -14,17 +14,19 @@ from ...core.search import Found, Result
 from .. import theme
 from .common import ElidedLabel
 
-SNIPPET_CHARS = 420  # how much of a passage a result shows (all of it in the Info panel)
+SNIPPET_CHARS = 240  # how much of a passage a result shows, about two lines (all of it in the Info panel)
+COLUMN = 720  # the page's text column, at most
 
 
 def marked(
     text: str, spans, start: int = 0, end: int | None = None, paragraphs: bool = False, strong: bool = False
 ) -> str:
     """text[start:end] as rich text, with spans (positions in text) highlighted. paragraphs: keep its line
-    breaks (else every run of spaces is one space). strong: a deeper highlight (the sentence backing an answer)."""
+    breaks (else every run of spaces is one space). strong: the sentence backing an answer (highlighted; the
+    question's words are also in bold)."""
     end = len(text) if end is None else end
     out, at = [], start
-    style = f"background-color:{_mark_colour(0.45 if strong else 0.28)};" + ("" if strong else " font-weight:600;")
+    style = f"background-color:{_mark_colour()};" + ("" if strong else " font-weight:600;")
     for s, e in spans:
         if e <= start or s >= end or s < at:
             continue
@@ -45,24 +47,30 @@ def _plain(text: str, paragraphs: bool) -> str:
     return re.sub(r"\s+", " ", text)
 
 
-def _mark_colour(alpha: float = 0.28) -> str:
-    c = theme.color("accent")
-    return f"rgba({c.red()},{c.green()},{c.blue()},{alpha})"
+def _mark_colour() -> str:
+    c = theme.color("highlight")
+    return f"rgba({c.red()},{c.green()},{c.blue()},{c.alphaF():.2f})"
 
 
 def answer_html(a: Answer) -> str:
-    """The answer as rich text: each backed sentence followed by its link [n], each unbacked one marked."""
+    """The answer as rich text: each backed sentence followed by its link, a raised n, each unbacked one marked."""
     muted = theme.color("muted").name()
+    accent = theme.color("accentText").name()
+    link = f"color:{accent}; text-decoration:none; font-weight:600;"
     out, at = [], 0
     for s in a.sentences:
         out.append(html.escape(a.text[at : s.end]))
         if s.backed:
-            out.append(f' <a href="source:{a.sentences.index(s)}">[{s.passage + 1}]</a>')
+            out.append(f'<sup><a href="source:{a.sentences.index(s)}" style="{link}">{s.passage + 1}</a></sup>')
         elif s.checked:
             out.append(f' <span style="color:{muted}; font-style:italic;">(not found in your files)</span>')
         at = s.end
     out.append(html.escape(a.text[at:]))
-    return "".join(out).replace("\n", "<br>")
+    return _spaced("".join(out).replace("\n", "<br>"))
+
+
+def _spaced(body: str) -> str:
+    return f'<p style="line-height:160%;">{body}</p>'
 
 
 def answer_for_copying(a: Answer) -> str:
@@ -104,35 +112,46 @@ def snippet_range(r: Result) -> tuple[int, int]:
 class ResultCard(QFrame):
     clicked = Signal(object)
 
-    def __init__(self, r: Result, parent=None):
+    def __init__(self, r: Result, first: bool = False, parent=None):
         super().__init__(parent)
         self.setObjectName("result")
+        self.setProperty("first", first)  # the best one, a step lighter
         self.result = r
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 12, 16, 14)
-        lay.setSpacing(4)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(14, 12, 14, 12)
+        lay.setSpacing(12)
+        icon = QLabel()
+        icon.setPixmap(theme.icon("doc", "accent").pixmap(18, 18))
+        lay.addWidget(icon, 0, Qt.AlignmentFlag.AlignTop)
+        words = QVBoxLayout()
+        words.setSpacing(2)
         top = QHBoxLayout()
-        top.setSpacing(10)
+        top.setSpacing(4)
         self.title = QLabel(r.name)
         self.title.setObjectName("resultTitle")
+        top.addWidget(self.title)
+        if r.where():
+            dot = QLabel("·")
+            dot.setObjectName("hint")
+            top.addWidget(dot)
         self.where = ElidedLabel(r.where(), mode=Qt.TextElideMode.ElideLeft)  # (the nearest heading last: kept)
         self.where.setObjectName("hint")
-        top.addWidget(self.title)
         top.addWidget(self.where, 1)
         if r.offline:
             off = QLabel("Offline")
             off.setObjectName("tag")
             off.setToolTip("Its folder can't be reached right now")
             top.addWidget(off)
-        lay.addLayout(top)
+        words.addLayout(top)
         start, end = snippet_range(r)
         body = ("… " if start else "") + marked(r.text, r.spans, start, end) + (" …" if end < len(r.text) else "")
         self.body = QLabel(body)
         self.body.setObjectName("resultText")
         self.body.setTextFormat(Qt.TextFormat.RichText)
         self.body.setWordWrap(True)
-        lay.addWidget(self.body)
+        words.addWidget(self.body)
+        lay.addLayout(words, 1)
 
     def mouseReleaseEvent(self, e):  # noqa: N802 (Qt's name)
         if e.button() == Qt.MouseButton.LeftButton:
@@ -150,21 +169,21 @@ class AnswerCard(QFrame):
         super().__init__(parent)
         self.setObjectName("answer")
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 12, 16, 14)
-        lay.setSpacing(6)
+        lay.setContentsMargins(0, 0, 0, 22)
+        lay.setSpacing(0)
         top = QHBoxLayout()
-        title = QLabel("Answer")
-        title.setObjectName("resultTitle")
-        self.info = QLabel()
-        self.info.setObjectName("hint")
+        top.setSpacing(12)
+        label = QLabel("Answer")
+        label.setObjectName("answerLabel")
         self.copy_button = QPushButton("Copy")
+        self.copy_button.setObjectName("copy")
         self.copy_button.setToolTip("Copy the answer with its sources")
         self.copy_button.clicked.connect(self._copy)
-        top.addWidget(title)
-        top.addStretch()
-        top.addWidget(self.info)
+        top.addWidget(label)
         top.addWidget(self.copy_button)
+        top.addStretch()
         lay.addLayout(top)
+        lay.addSpacing(12)
         self.body = QLabel()
         self.body.setObjectName("answerText")
         self.body.setWordWrap(True)
@@ -180,33 +199,22 @@ class AnswerCard(QFrame):
     def reading(self, count: int):
         self.answer = None
         self.copy_button.hide()
-        self.info.setText("")
-        self.body.setText(f"<i>Reading the {count} best passage{'s' if count != 1 else ''}...</i>")
+        self.body.setText(_spaced(f"<i>Reading the {count} best passage{'s' if count != 1 else ''}...</i>"))
         self.show()
 
     def writing(self, text: str):
-        self.body.setText(html.escape(text).replace("\n", "<br>"))
+        self.body.setText(_spaced(html.escape(text).replace("\n", "<br>")))
 
     def done(self, a: Answer, saved: bool = False):
         self.answer = a
         self.body.setText(answer_html(a))
         self.copy_button.setVisible(not a.not_found)
-        if a.not_found:
-            self.info.setText("")
-        else:
-            backed = sum(s.backed for s in a.sentences)
-            checked = sum(s.checked for s in a.sentences)
-            self.info.setText(
-                ("" if saved or not a.asked_model else f"{a.seconds:.1f} s · ")
-                + (f"{backed} of {checked} sentences found in your files" if checked else "")
-            )
         self.show()
 
     def failed(self, message: str):
         self.answer = None
         self.copy_button.hide()
-        self.info.setText("")
-        self.body.setText(html.escape(message))
+        self.body.setText(_spaced(html.escape(message)))
         self.show()
 
     def _link(self, href: str):
@@ -230,8 +238,23 @@ class AskPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(24, 8, 24, 0)
-        lay.setSpacing(10)
+        lay.setContentsMargins(0, 0, 0, 0)
+        self.scroll = QScrollArea()
+        self.scroll.setObjectName("results")
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.list = QWidget()
+        self.list.setObjectName("resultList")
+        page = QHBoxLayout(self.list)
+        page.setContentsMargins(56, 40, 56, 24)
+        column = QWidget()
+        column.setMaximumWidth(COLUMN)
+        page.addWidget(column, 1)
+        page.addStretch(0)
+        self.list_lay = QVBoxLayout(column)
+        self.list_lay.setContentsMargins(0, 0, 0, 0)
+        self.list_lay.setSpacing(6)
         self.note = QFrame()
         self.note.setObjectName("note")
         note = QHBoxLayout(self.note)
@@ -243,24 +266,25 @@ class AskPage(QWidget):
         note.addWidget(self.note_text, 1)
         note.addWidget(self.note_button)
         self.note.hide()
-        lay.addWidget(self.note)
+        self.list_lay.addWidget(self.note)
         self.status = QLabel("Ask a question about your documents in the box above.")
         self.status.setObjectName("hint")
         self.status.setWordWrap(True)
-        lay.addWidget(self.status)
-        self.scroll = QScrollArea()
-        self.scroll.setObjectName("results")
-        self.scroll.setWidgetResizable(True)
-        self.scroll.setFrameShape(QFrame.Shape.NoFrame)
-        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.list = QWidget()
-        self.list.setObjectName("resultList")
-        self.list_lay = QVBoxLayout(self.list)
-        self.list_lay.setContentsMargins(0, 0, 0, 16)
-        self.list_lay.setSpacing(10)
+        self.list_lay.addWidget(self.status)
+        self.title = QLabel()  # the question
+        self.title.setObjectName("questionTitle")
+        self.title.setWordWrap(True)
+        self.title.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.title.hide()
+        self.list_lay.addWidget(self.title)
+        self.list_lay.addSpacing(6)
         self.answer = AnswerCard()
         self.answer.source.connect(self.source)
         self.list_lay.addWidget(self.answer)
+        self.heading = QLabel()
+        self.heading.setObjectName("sectionTitle")
+        self.heading.hide()
+        self.list_lay.addWidget(self.heading)
         self.list_lay.addStretch()
         self.scroll.setWidget(self.list)
         lay.addWidget(self.scroll, 1)
@@ -289,7 +313,11 @@ class AskPage(QWidget):
     def searching(self, question: str):
         self.question = question
         self.answer.hide()
+        self.title.setText(question)
+        self.title.show()
+        self.heading.hide()
         self.status.setText("Searching...")
+        self.status.show()
 
     def show_found(self, question: str, found: Found, asked: str | None = None):
         """The passages found (asked: when a saved question was asked, shown instead of the search time)."""
@@ -297,22 +325,26 @@ class AskPage(QWidget):
         for c in self.cards:
             c.deleteLater()
         self.cards = []
+        self.title.setText(question)
+        self.title.show()
         n = len(found.results)
+        self.status.setVisible(not n)
+        self.heading.setVisible(bool(n))
         if not n:
             self.status.setText("Nothing in your files matches that. Try other words, or check the Library.")
         else:
             files = len({r.path for r in found.results})
-            how = "" if found.by_meaning else " (by keyword only, until search by meaning is ready)"
-            self.status.setText(
-                f"{n} passage{'s' if n != 1 else ''} from {files} file{'s' if files != 1 else ''}, "
-                f"best first{how} · " + (f"asked {asked}" if asked else f"{found.seconds:.1f} s")
-            )
-        for r in found.results:
-            card = ResultCard(r)
+            how = "" if found.by_meaning else " · by keyword only, until search by meaning is ready"
+            when = f" · asked {asked}" if asked else ""
+            self.heading.setText(f"Passages · {n} from {files} file{'s' if files != 1 else ''}{how}{when}")
+        for i, r in enumerate(found.results):
+            card = ResultCard(r, first=i == 0)
             card.clicked.connect(self.opened)
             self.list_lay.insertWidget(self.list_lay.count() - 1, card)
             self.cards.append(card)
         self.scroll.verticalScrollBar().setValue(0)
 
     def show_error(self, message: str):
+        self.heading.hide()
         self.status.setText(message)
+        self.status.show()

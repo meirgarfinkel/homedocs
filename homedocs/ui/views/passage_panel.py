@@ -1,23 +1,33 @@
 """The Info panel's passage view: a result in full, with its file, its place in the file, the question's words
 highlighted (or, opened from an answer's link, the sentence backing it), and buttons to open the file or show it
-in its folder."""
+in its folder. It has no button in the top bar: a click on a source opens it, and its ✕ (or Ctrl+I) closes it."""
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QToolButton, QVBoxLayout, QWidget
 
 from ...core.search import Result
+from .. import theme
 from ..desktop import open_file, show_in_folder
 from .ask import marked
 
 
 class PassagePanel(QWidget):
+    closed = Signal()  # its ✕
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("infoBody")
         self.setMinimumWidth(300)
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(20, 20, 20, 16)
+        lay.setContentsMargins(20, 10, 12, 16)
         lay.setSpacing(8)
+        self.close_button = QToolButton()
+        self.close_button.setObjectName("panelClose")
+        self.close_button.setAccessibleName("Close")
+        self.close_button.clicked.connect(self.closed)
+        theme.signals.changed.connect(self._restyle)
+        self._restyle()
+        lay.addWidget(self.close_button, 0, Qt.AlignmentFlag.AlignRight)
         self.hint = QLabel("Click a passage on the Ask page to read it here.")
         self.hint.setObjectName("hint")
         self.hint.setWordWrap(True)
@@ -60,6 +70,9 @@ class PassagePanel(QWidget):
         self.buttons = [self.open_button, self.folder_button]
         self.result = None
         self.show_result(None)
+
+    def _restyle(self):
+        self.close_button.setIcon(theme.icon("clear", "muted"))
 
     def show_result(self, r: Result | None, focus: tuple[int, int] | None = None):
         """r in full; focus: a sentence of it to highlight instead of the question's words."""

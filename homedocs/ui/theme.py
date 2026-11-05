@@ -1,8 +1,9 @@
-"""The look: colours, the font, the app-wide style sheet, and the toolbar's icons.
+"""The look ("Paper", after Notion): colours, the font, the app-wide style sheet, and the drawn icons.
 
-One design in a dark version (sand on ink blue) and a light one. Dark is the default;
-Settings can pick light, or follow the system. Widgets that paint themselves read the colours from
-here at paint time (`color("accent")`), so they follow a switch on their next repaint.
+Cool greys with an apricot accent, in a dark version (the default) and a light one; Settings can pick
+light, or follow the system. The top bar and sidebar share one tint around a plain page, with no lines
+between them. Widgets that paint themselves read the colours from here at paint time
+(`color("accent")`), so they follow a switch on their next repaint.
 """
 
 import atexit
@@ -19,46 +20,59 @@ from PySide6.QtWidgets import QAbstractSpinBox, QApplication, QComboBox, QMenu, 
 from ..core.settings import load_settings, save_settings
 
 FONT_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2])) / "homedocs" / "ui" / "fonts"
-FAMILY = "Plus Jakarta Sans"
-WORD_SPACE = 0.14  # extra room between words, as a share of the text size
+FAMILY = "Inter"
 MODES = {"dark": "Dark", "light": "Light", "system": "Match the system"}
 
 TOKENS = {
     "light": {
-        "bg": "#FFFFFF",
-        "side": "#F5F6F8",
-        "raised": "#FFFFFF",
-        "field": "#EEF0F3",
-        "border": "#E4E7EB",
-        "text": "#161A1F",
-        "muted": "#5B6470",
-        "accent": "#0A7DAD",
-        "accentFill": "#0A7DAD",
+        "bg": "#FFFFFF",  # the page
+        "side": "#F5F7FA",  # the top bar and sidebar, one tint
+        "raised": "#FFFFFF",  # menus, plain buttons
+        "field": "#EEF1F5",
+        "border": "#E3E7ED",
+        "text": "#1F2733",
+        "muted": "#5D6979",
+        "accent": "#966230",  # icons, source numbers, focus rings
+        "accentText": "#966230",
+        "accentFill": "#966230",  # a button's fill, with white text
         "accentInk": "#FFFFFF",
-        "accentSoft": "rgba(10,125,173,0.11)",
-        "accentText": "#086A93",
-        "hover": "rgba(22,26,31,0.06)",
-        "hoverStrong": "rgba(22,26,31,0.10)",
+        "accentSoft": "rgba(150,98,48,0.12)",
+        "hover": "rgba(31,39,51,0.05)",
+        "hoverStrong": "rgba(31,39,51,0.09)",
+        "selected": "rgba(31,39,51,0.07)",  # the chosen sidebar row
+        "sideText": "rgba(20,20,20,0.80)",  # neutral ink, not blue-grey on the tint
+        "sideLabel": "rgba(20,20,20,0.55)",
+        "sideStrong": "rgba(20,20,20,0.95)",
+        "ok": "#2E8A55",  # the indexed-files count
+        "highlight": "rgba(31,39,51,0.09)",  # the sentence backing an answer, the question's words
+        "card": "#F5F7FA",
+        "cardFirst": "#EEF1F5",
         "danger": "#C0392B",
-        "rail": "rgba(22,26,31,0.025)",  # a faint side strip
     },
     "dark": {
-        "bg": "#1F1F28",  # the page (the "well")
-        "side": "#23242C",  # the toolbar and sidebar, one band around them
-        "raised": "#2A2B35",
-        "field": "#2F303A",
-        "border": "#3D3E4A",
-        "text": "#F4F2EE",
-        "muted": "#A4A4AE",
-        "accent": "#F0DAB3",
-        "accentFill": "rgba(240,218,179,0.80)",  # the chosen row in the sidebar, the slider's knob
-        "accentInk": "#1F1F28",
-        "accentSoft": "rgba(240,218,179,0.14)",
-        "accentText": "#F0DAB3",
-        "hover": "rgba(244,242,238,0.06)",
-        "hoverStrong": "rgba(244,242,238,0.12)",
+        "bg": "#14171C",
+        "side": "#1A1E24",
+        "raised": "#20252C",
+        "field": "#242930",
+        "border": "#2B3139",
+        "text": "#E4E8EE",
+        "muted": "#98A2AF",
+        "accent": "#DDB088",
+        "accentText": "#DDB088",
+        "accentFill": "#966230",
+        "accentInk": "#FFFFFF",
+        "accentSoft": "rgba(221,176,136,0.16)",
+        "hover": "rgba(255,255,255,0.05)",
+        "hoverStrong": "rgba(255,255,255,0.10)",
+        "selected": "rgba(255,255,255,0.06)",
+        "sideText": "rgba(255,255,255,0.80)",
+        "sideLabel": "rgba(255,255,255,0.55)",
+        "sideStrong": "rgba(255,255,255,0.95)",
+        "ok": "#86D9A6",
+        "highlight": "rgba(255,255,255,0.10)",
+        "card": "#1A1E24",
+        "cardFirst": "#242930",
         "danger": "#F0776A",
-        "rail": "rgba(244,242,238,0.03)",
     },
 }
 
@@ -89,7 +103,6 @@ def font(px: float, weight=QFont.Weight.Normal) -> QFont:
     f = QFont(FAMILY)
     f.setPointSizeF(px * 0.75)
     f.setWeight(weight)
-    f.setWordSpacing(WORD_SPACE * px)  # the font's own spaces are narrow: words ran together
     return f
 
 
@@ -129,7 +142,7 @@ def apply(app, m: str | None = None):
     app.setAttribute(Qt.ApplicationAttribute.AA_DontShowIconsInMenus)  # e.g. the system's Cut/Copy/Paste ones
     app.setPalette(palette())
     if _fonts_loaded():
-        app.setFont(font(13))
+        app.setFont(font(14))
     if not hasattr(app, "_popups"):
         app._popups = _Popups(app)
         app.installEventFilter(app._popups)
@@ -239,68 +252,71 @@ def style_sheet(t: dict) -> str:
     return """
 QMainWindow, QDialog {{ background: {bg}; }}
 QToolTip {{ background: {raised}; color: {text}; border: 1px solid {border}; padding: 5px 8px; }}
-QMainWindow::separator {{ background: {side}; width: 1px; height: 1px; }}
+QMainWindow::separator {{ background: {side}; width: 0; height: 0; }}
 
-QToolBar#main {{ background: {side}; border: none; padding: 0 14px;
-                 spacing: 14px; }}
-QToolBar#main QToolButton {{ background: transparent; border: none; border-radius: 19px; min-width: 38px;
-                             min-height: 38px; padding: 0; color: {text}; }}
-QToolBar#main QToolButton[label="true"] {{ padding: 0 14px; font-weight: 600; }}
+QToolBar#main {{ background: {side}; border: none; padding: 0 8px 0 0; spacing: 10px; }}
+QToolBar#main QToolButton {{ background: transparent; border: none; border-radius: 14px; min-width: 28px;
+                             min-height: 28px; padding: 0; }}
 QToolBar#main QToolButton:hover {{ background: {hover}; }}
-QToolBar#main QToolButton:checked {{ background: {accentSoft}; color: {accentText}; }}
 QToolBar#main QToolButton::menu-indicator {{ image: none; width: 0; }}
-QLabel#brand {{ font-weight: 700; font-size: 15px; padding-left: 4px; }}
-QLineEdit#search {{ background: {field}; border: 1px solid transparent; border-radius: 20px; min-height: 38px;
-                    padding: 0 40px 0 40px; font-size: 14px; }}
+QLabel#brand {{ font-weight: 600; font-size: 14px; }}
+QLabel#indexed {{ color: {ok}; font-size: 13px; }}
+QLineEdit#search {{ background: {field}; border: 1px solid transparent; border-radius: 16px; min-height: 34px;
+                    padding: 0 36px 0 36px; font-size: 14px; }}
 QLineEdit#search:focus {{ border-color: {accent}; }}
 
 QWidget#pageHeader {{ background: {bg}; }}
-QLabel#pageTitle {{ font-size: 26px; font-weight: 700; }}
+QLabel#pageTitle {{ font-size: 22px; font-weight: 600; }}
 QLabel#pageCount {{ color: {muted}; }}
 QLabel#hint {{ color: {muted}; }}
-QToolButton#pageBack {{ border: none; border-radius: 16px; padding: 4px 12px 4px 6px; color: {muted};
-                        font-weight: 600; }}
+QToolButton#pageBack {{ border: none; border-radius: 14px; padding: 4px 12px 4px 6px; color: {muted};
+                        font-weight: 500; }}
 QToolButton#pageBack:hover {{ background: {hover}; color: {text}; }}
 
-QLabel#emptyTitle {{ font-size: 20px; font-weight: 700; }}
-QFrame#note {{ background: {accentSoft}; border-radius: 12px; }}
+QLabel#emptyTitle {{ font-size: 20px; font-weight: 600; }}
+QFrame#note {{ background: {accentSoft}; border-radius: 14px; }}
 QFrame#note QLabel {{ background: transparent; }}
 QScrollArea#results, QWidget#resultList {{ background: {bg}; border: none; }}
-QFrame#result {{ background: {side}; border: 1px solid transparent; border-radius: 12px; }}
-QFrame#result:hover {{ border-color: {border}; }}
+QFrame#result {{ background: {card}; border: none; border-radius: 16px; }}
+QFrame#result[first="true"], QFrame#result:hover {{ background: {cardFirst}; }}
 QFrame#result QLabel {{ background: transparent; }}
-QLabel#resultTitle {{ font-weight: 700; }}
-QLabel#resultText {{ color: {text}; line-height: 140%; }}
-QFrame#answer {{ background: {side}; border: 1px solid {border}; border-radius: 12px; }}
+QLabel#resultTitle {{ font-weight: 500; font-size: 13px; }}
+QLabel#resultText {{ color: {muted}; font-size: 13px; }}
+QLabel#sectionTitle {{ color: {muted}; font-weight: 600; }}
+QFrame#answer {{ background: transparent; border: none; }}
 QFrame#answer QLabel {{ background: transparent; }}
-QLabel#answerText {{ color: {text}; font-size: 15px; }}
+QLabel#questionTitle {{ font-size: 22px; font-weight: 600; }}
+QLabel#answerLabel {{ color: {muted}; font-size: 13px; }}
+QLabel#answerText {{ color: {text}; font-size: 16px; }}
+QPushButton#copy {{ background: {field}; color: {muted}; border: none; border-radius: 12px; padding: 0 10px;
+                    min-height: 26px; font-size: 13px; font-weight: 400; }}
+QPushButton#copy:hover {{ color: {text}; }}
 QLabel#tag {{ color: {muted}; border: 1px solid {border}; border-radius: 8px; padding: 1px 7px; font-size: 11px; }}
-QLabel#panelTitle {{ font-size: 16px; font-weight: 700; }}
-QLabel#panelPath {{ color: {muted}; font-size: 11px; }}
-QLabel#passageText {{ background: {side}; padding-right: 6px; }}
-QFrame#folderRow {{ background: {side}; border-radius: 10px; }}
+QLabel#panelTitle {{ font-size: 16px; font-weight: 600; }}
+QLabel#panelPath {{ color: {muted}; font-size: 12px; }}
+QLabel#passageText {{ background: {side}; padding-right: 6px; font-size: 15px; }}
+QToolButton#panelClose {{ border: none; border-radius: 14px; min-width: 28px; min-height: 28px; padding: 0; }}
+QToolButton#panelClose:hover {{ background: {hover}; }}
+QFrame#folderRow {{ background: {card}; border-radius: 14px; }}
 QLabel#folderPath {{ font-weight: 600; background: transparent; }}
 QFrame#folderRow QLabel {{ background: transparent; }}
-QPushButton#filter {{ background: transparent; border: 1px solid {border}; border-radius: 13px; padding: 5px 14px;
-                      font-weight: 600; color: {muted}; }}
+QPushButton#filter {{ background: transparent; border: 1px solid {border}; border-radius: 14px; padding: 5px 14px;
+                      font-weight: 500; color: {muted}; }}
 QPushButton#filter:hover {{ background: {hover}; color: {text}; }}
 QPushButton#filter:checked {{ background: {accentSoft}; border-color: transparent; color: {accentText}; }}
-QTableView#files {{ background: {bg}; border: none; outline: 0; selection-background-color: {accentSoft};
+QTableView#files {{ background: {bg}; border: none; outline: 0; selection-background-color: {selected};
                     selection-color: {text}; }}
 QTableView#files::item {{ padding: 0 8px; border-bottom: 1px solid {border}; }}
 QTableView#files::item:hover {{ background: {hover}; }}
-QTableView#files::item:selected {{ background: {accentSoft}; color: {text}; }}
+QTableView#files::item:selected {{ background: {selected}; color: {text}; }}
 QTableView#files QHeaderView::section {{ background: {bg}; color: {muted}; border: none;
     border-bottom: 1px solid {border}; padding: 6px 8px; font-weight: 600; font-size: 12px; }}
 
-QTreeWidget#sidebar {{ background: {side}; border: none; padding: 10px 10px; outline: 0; }}
-QTreeWidget#sidebar::item {{ min-height: 36px; padding: 0 4px; border: none; }}
-QTreeWidget#sidebar::item:first {{ border-top-left-radius: 18px; border-bottom-left-radius: 18px;
-    padding-left: 10px; }}
-QTreeWidget#sidebar::item:last {{ border-top-right-radius: 18px; border-bottom-right-radius: 18px;
-    padding-right: 12px; }}
+QTreeWidget#sidebar {{ background: {side}; color: {sideText}; border: none; padding: 10px 8px; outline: 0; }}
+QTreeWidget#sidebar::item {{ min-height: 28px; padding: 0 8px; border: none; border-radius: 14px;
+    color: {sideText}; }}
 QTreeWidget#sidebar::item:hover {{ background: {hover}; }}
-QTreeWidget#sidebar::item:selected {{ background: {accentFill}; color: {accentInk}; }}
+QTreeWidget#sidebar::item:selected {{ background: {selected}; color: {sideStrong}; }}
 QTreeWidget#sidebar::branch {{ background: {side}; image: none; border-image: none; }}
 
 QWidget#infoBody, QScrollArea#info {{ background: {side}; border: none; }}
@@ -310,20 +326,20 @@ QFrame#statusPill QProgressBar {{ background: {border}; border: none; border-rad
 QFrame#statusPill QProgressBar::chunk {{ background: {accent}; border-radius: 2px; }}
 QFrame#statusPill QToolButton {{ color: {muted}; font-size: 12px; border: none; border-radius: 9px; padding: 1px 7px; }}
 QFrame#statusPill QToolButton:hover {{ background: {hover}; color: {text}; }}
-QFrame#banner {{ background: {accentSoft}; border: none; border-bottom: 1px solid {border}; }}
+QFrame#banner {{ background: {accentSoft}; border: none; }}
 
-QPushButton {{ background: {raised}; color: {text}; border: 1px solid {border}; border-radius: 10px;
-               padding: 7px 16px; font-weight: 600; }}
+QPushButton {{ background: {raised}; color: {text}; border: 1px solid {border}; border-radius: 14px;
+               padding: 6px 14px; font-weight: 500; }}
 QPushButton:hover {{ background: {field}; }}
 QPushButton:pressed {{ background: {border}; }}
-QPushButton:default {{ background: {accent}; color: {accentInk}; border-color: {accent}; }}
+QPushButton:default {{ background: {accentFill}; color: {accentInk}; border-color: {accentFill}; }}
 QPushButton:disabled {{ color: {muted}; background: {side}; }}
 QToolButton {{ border-radius: 8px; padding: 4px 8px; }}
 QToolButton:hover {{ background: {hover}; }}
 
 QLineEdit, QPlainTextEdit, QTextEdit, QSpinBox, QComboBox {{
     background: {field}; color: {text}; border: 1px solid transparent; border-radius: 10px; padding: 6px 10px;
-    selection-background-color: {accent}; selection-color: {accentInk}; }}
+    selection-background-color: {accentFill}; selection-color: {accentInk}; }}
 QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus, QSpinBox:focus, QComboBox:focus {{
     border-color: {accent}; }}
 QComboBox {{ padding: 8px 12px; min-width: 120px; combobox-popup: 0; }}
@@ -358,7 +374,7 @@ QDialog QListWidget, QDialog QTreeView, QDialog QTableView {{ background: {field
 QDialog QListWidget::item {{ padding: 6px 8px; border-radius: 8px; }}
 QDialog QListWidget::item:selected {{ background: {accentSoft}; color: {accentText}; }}
 
-QMenu {{ background: {raised}; color: {text}; border: 1px solid {border}; border-radius: 12px; padding: 6px; }}
+QMenu {{ background: {raised}; color: {text}; border: 1px solid {border}; border-radius: 14px; padding: 6px; }}
 QMenu::item {{ padding: 9px 32px 9px 14px; border-radius: 8px; }}
 QMenu::item:selected {{ background: {accentSoft}; color: {accentText}; }}
 QMenu::item:disabled {{ color: {muted}; }}
@@ -372,12 +388,12 @@ QWidget#menuRow[active="true"] QLabel#menuRowTitle, QWidget#menuRow[active="true
 QLabel#menuRowKeys {{ color: {muted}; font-size: 12px; background: transparent; padding-left: 16px; }}
 QWidget#menuRow QLabel:disabled {{ color: {muted}; }}
 QLabel#menuRowText {{ font-size: 12px; color: {muted}; background: transparent; }}
-QLabel#menuHeading {{ font-size: 11px; font-weight: 700; color: {muted}; padding: 10px 14px 4px;
+QLabel#menuHeading {{ font-size: 11px; font-weight: 600; color: {muted}; padding: 10px 14px 4px;
     background: transparent; }}
 
 QSlider::groove:horizontal {{ height: 4px; background: {border}; border-radius: 2px; }}
 QSlider::sub-page:horizontal {{ background: {accent}; border-radius: 2px; }}
-QSlider::handle:horizontal {{ background: {accentFill}; width: 14px; height: 14px; margin: -5px 0;
+QSlider::handle:horizontal {{ background: {accent}; width: 14px; height: 14px; margin: -5px 0;
     border-radius: 7px; }}
 QProgressBar {{ background: {field}; border: none; border-radius: 3px; max-height: 6px; }}
 QProgressBar::chunk {{ background: {accent}; border-radius: 3px; }}
@@ -561,12 +577,13 @@ def icon(name: str, colour: str = "text") -> QIcon:
     """In the text colour (or another), and the accent's when checked."""
     ic = QIcon()
     ic.addPixmap(_pixmap(name, color(colour)), QIcon.Mode.Normal, QIcon.State.Off)
+    ic.addPixmap(_pixmap(name, color(colour)), QIcon.Mode.Selected, QIcon.State.Off)  # (not tinted)
     ic.addPixmap(_pixmap(name, color("accentText")), QIcon.Mode.Normal, QIcon.State.On)
     ic.addPixmap(_pixmap(name, color("muted")), QIcon.Mode.Disabled, QIcon.State.Off)
     return ic
 
 
-def brand_mark(px: int = 28, dpr: float = 2.0) -> QPixmap:
+def brand_mark(px: int = 24, dpr: float = 2.0) -> QPixmap:
     """The app icon (homedocs-icon.svg): a light roof with a chimney over a page with two lines of text, on a
     slate blue circle. Drawn on a 64-unit grid, the same as the SVG."""
     pm = QPixmap(round(px * dpr), round(px * dpr))
