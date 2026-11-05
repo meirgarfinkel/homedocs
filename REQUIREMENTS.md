@@ -32,7 +32,9 @@ Agreed 2026-11-04. **v1** = first release, **v2** = next release, **Later** = no
 
 | Requirement | Priority |
 |---|---|
-| Add and remove folders to search; their subfolders are included | v1 |
+| Add and remove folders to search, in Settings; their subfolders are included | v1 |
+| Leave out a subfolder or a single file (in Settings, or from the Library page); it isn't read or searched, and can be taken back in | v1 |
+| Removing a folder asks first, saying how many files leave the search (nothing on disk is touched) | v1 |
 | PDF, Word (.docx), Markdown, plain text | v1 |
 | Hidden files and folders, and files over a size limit, are skipped | v1 |
 | A folder on a disconnected drive keeps its passages searchable, marked as offline; it isn't treated as deleted | v1 |
@@ -103,6 +105,8 @@ every other step is tuned for it, against a test set much harder than the 20 que
 | First run: pick a folder, download the models with a progress bar, then indexing starts | v1 |
 | A failed or interrupted download resumes; a file that fails its sha256 check is deleted and fetched again | v1 |
 | Ask page (the main view), Library page (every file, its status, passage count, and failures with the reason) | v1 |
+| The Library page manages what's in the folders, file by file (open, show in folder, read again, leave out, take back in); which folders are searched is chosen in Settings | v1 |
+| Settings: Folders (add, remove, left out) and the look | v1 |
 | The Paper look (below): Dark, Light or match the system | v1 |
 | Checks for updates quietly after start and from the menu; updates itself per install type | v1 |
 | One copy at a time | v1 |
@@ -136,6 +140,10 @@ replaces HomePix's sand-on-ink look. The design board: https://claude.ai/artifac
   the sidebar. The ask box in the middle. On the right, the indexed-files count, then the menu (☰) at the
   far end; the menu opens leftward, inside the window. No Info button.
 - **Sidebar:** 180 px. Ask and Library with icons, then "Recent questions".
+- **Status:** at the bottom of the sidebar, never over the page: one short line ("Checking for changes",
+  "Indexing 312 of 1,204", "Finishing up · 40%", "Copied"), a thin progress bar under it, and a small ✕ to stop
+  indexing. The full wording is on hover. With the sidebar closed, the indexed-files count in the top bar
+  shows the short line instead.
 - **Icons:** thin line icons in the accent colour.
 - **Answer:** the question title, "Answer" and Copy, then the answer with superscript source numbers in the
   accent colour. No timing line.

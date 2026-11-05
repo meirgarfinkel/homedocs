@@ -1,10 +1,9 @@
-"""Background indexing for the app: when it runs, and its progress in the status pill."""
+"""Background indexing for the app: when it runs, and what it's doing in words (for the status line)."""
 
 import os
 import time
 
-from PySide6.QtCore import QObject, Qt, QTimer, Signal
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QToolButton, QWidget
+from PySide6.QtCore import QObject, QTimer, Signal
 
 from ..core.config import RESCAN_GAP
 from ..core.indexer import Indexer
@@ -82,8 +81,23 @@ class IndexWatcher(QObject):
         self.changed.emit()
 
 
+def brief(s: dict) -> str:
+    """What the indexer is doing, in two or three words (the status line; describe() is the full wording)."""
+    if s.get("error"):
+        return "Indexing stopped"
+    if s["phase"] == "elsewhere":
+        return "Indexing in another window"
+    if not s["running"]:
+        return ""
+    if s["phase"] == "embedding" and s["todo"]:
+        return f"Finishing up · {100 * s['done'] // s['todo']}%"
+    if s["phase"] == "reading" and s["todo"]:
+        return f"Indexing {s['done']:,} of {s['todo']:,}"
+    return "Checking for changes"
+
+
 def describe(s: dict) -> str:
-    """What the indexer is doing, in a few words for the status pill."""
+    """What the indexer is doing, in full (on hover over the status line)."""
     if s.get("error"):
         return s["error"]
     if s["phase"] == "elsewhere":
@@ -96,42 +110,3 @@ def describe(s: dict) -> str:
         name = os.path.basename(s["file"]) if s.get("file") else ""
         return f"Reading files: {s['done']:,} of {s['todo']:,}" + (f" ({name})" if name else "")
     return "Looking for new and changed files..."
-
-
-class IndexStatus(QWidget):
-    """What indexing is doing, how far it got, and a button to stop it (in the status pill)."""
-
-    def __init__(self, watcher: IndexWatcher, parent=None):
-        super().__init__(parent)
-        lay = QHBoxLayout(self)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(8)
-        self.label = QLabel()
-        self.label.setMaximumWidth(420)
-        self.bar = QProgressBar()
-        self.bar.setFixedSize(72, 4)
-        self.bar.setTextVisible(False)
-        self.stop = QToolButton()
-        self.stop.setText("Stop")
-        self.stop.setToolTip("Stop for now; it carries on where it left off next time")
-        self.stop.clicked.connect(watcher.stop)
-        for w in (self.label, self.bar, self.stop):
-            lay.addWidget(w)
-        watcher.state.connect(self.show_state)
-        self.show_state({"running": False, "phase": "idle"})
-
-    def show_state(self, s: dict):
-        text = describe(s)
-        room = self.label.maximumWidth()
-        self.label.setText(self.label.fontMetrics().elidedText(text, Qt.TextElideMode.ElideRight, room))
-        self.label.setToolTip(text)
-        self.label.setVisible(bool(text))
-        busy = bool(s["running"])
-        self.bar.setVisible(busy)
-        self.stop.setVisible(busy)
-        if busy:
-            if s["phase"] in ("reading", "embedding") and s.get("todo"):
-                self.bar.setRange(0, s["todo"])
-                self.bar.setValue(s["done"])
-            else:
-                self.bar.setRange(0, 0)  # busy, amount unknown

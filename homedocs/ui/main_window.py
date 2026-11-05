@@ -1,9 +1,10 @@
 """The main window: the top bar (the sidebar switch and the name over the sidebar, the question box, the
-indexed-files count and the menu), the sidebar, the Ask and Library pages, the Info panel at the side, and the
-status pill over the page's corner."""
+indexed-files count and the menu), the sidebar with the status line at its bottom, the Ask and Library pages,
+and the Info panel at the side."""
 
 import time
 
+import shiboken6
 from PySide6.QtCore import QRect, QSettings, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QKeySequence, QPainter
 from PySide6.QtWidgets import (
@@ -30,10 +31,10 @@ from ..core.db import open_db
 from ..core.search import Found, Searcher
 from ..core.settings import folders
 from . import theme, workers
-from .indexing import IndexStatus, IndexWatcher
+from .indexing import IndexWatcher
 from .menu import MenuButton, add_row
 from .models_ui import ModelLoader
-from .status_pill import StatusPill
+from .status import StatusLine
 from .updates import Updater
 from .views.ask import AskPage
 from .views.library import LibraryPage
@@ -119,6 +120,7 @@ class MainWindow(QMainWindow):
         # window layout and sizes, kept with the rest of HomeDocs' data
         self.settings = QSettings(str(data_dir() / "window.ini"), QSettings.Format.IniFormat)
         self.loaded = False  # everything the window shows at start has been read once
+        self._indexed_text = ""  # "15 files indexed"
 
         self.ask_page = AskPage()
         self.library_page = LibraryPage()
@@ -150,7 +152,15 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
         self.sidebar = Sidebar()
-        self.sidebar_dock = self._dock("Sidebar", "sidebar", self.sidebar, Qt.DockWidgetArea.LeftDockWidgetArea)
+        side = QWidget()  # the sidebar, with the status line at its bottom (never over the page)
+        side.setObjectName("sidePanel")
+        side.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        side.setFixedWidth(WIDTH)
+        side_lay = QVBoxLayout(side)
+        side_lay.setContentsMargins(0, 0, 0, 0)
+        side_lay.setSpacing(0)
+        side_lay.addWidget(self.sidebar, 1)
+        self.sidebar_dock = self._dock("Sidebar", "sidebar", side, Qt.DockWidgetArea.LeftDockWidgetArea)
         self.info = PassagePanel()
         self.info_dock = self._dock("Info", "info", self.info, Qt.DockWidgetArea.RightDockWidgetArea)
         self.info_dock.hide()  # opens when a source is clicked
@@ -158,10 +168,10 @@ class MainWindow(QMainWindow):
         self._build_toolbar()
         self.updater = Updater(self)
         self._build_menu()
-        self.background = IndexStatus(self.watcher)
-        # messages and background work in a small box over the page's corner: nothing moves when it shows
-        self.status_pill = StatusPill(central, self.statusBar(), self.background)
-        self.watcher.state.connect(self.status_pill.refresh)
+        self.status_line = StatusLine(self.watcher, self.statusBar())
+        side_lay.addWidget(self.status_line)
+        self.status_line.changed.connect(lambda _: self._show_indexed())
+        self.sidebar_dock.visibilityChanged.connect(lambda _: self._show_indexed())
         self.watcher.changed.connect(self.library_page.reload)
         self.watcher.changed.connect(self._vectors_changed)
         self.watcher.state.connect(self._index_state)
@@ -184,17 +194,15 @@ class MainWindow(QMainWindow):
         self.ask_page.retry.connect(self._retry_models)
         self.info.closed.connect(self.info_dock.hide)
         self.watcher.changed.connect(self._count_indexed)
-        self.library_page.folders_changed.connect(self._update_note)
+        self.library_page.folders_changed.connect(self.folders_changed)
         self._model_problem = None
         self._reloaded = 0.0
         self._indexing = False
         self._reload_timer = QTimer(self)
         self._reload_timer.setSingleShot(True)
         self._reload_timer.timeout.connect(self._vectors_changed)
-        self.library_page.folders_changed.connect(self.watcher.start)
         self.library_page.rescan.connect(self.watcher.start)
         QApplication.instance().applicationStateChanged.connect(self._app_state)
-        self.status_pill.raise_()
         theme.signals.changed.connect(self._restyle)
         self._restyle()
         self.sidebar.chosen.connect(self.show_page)
@@ -225,10 +233,22 @@ class MainWindow(QMainWindow):
 
     def _count_indexed(self):
         def show(n, err):
-            self.indexed.setText(f"{n:,} file{'s' if n != 1 else ''} indexed" if n else "")
-            self.indexed_item.setVisible(bool(n))
+            self._indexed_text = f"{n:,} file{'s' if n != 1 else ''} indexed" if n else ""
+            self._show_indexed()
 
         workers.run(_indexed, show)
+
+    def _show_indexed(self):
+        """The top bar's count; with the sidebar closed, the status line's words instead while it has some."""
+        if not shiboken6.isValid(self.indexed_item):
+            return  # (closing: the top bar is gone)
+        busy = bool(self.status_line.text) and self.sidebar_dock.isHidden()
+        text = self.status_line.text if busy else self._indexed_text
+        if self.indexed.property("busy") != busy:
+            self.indexed.setProperty("busy", busy)  # (grey, not green)
+            self.indexed.style().polish(self.indexed)
+        self.indexed.setText(text)
+        self.indexed_item.setVisible(bool(text))
 
     def _app_state(self, state):
         if state == Qt.ApplicationState.ApplicationActive and self.loaded:
@@ -360,7 +380,17 @@ class MainWindow(QMainWindow):
         self.activateWindow()
 
     def open_settings(self):
-        SettingsDialog(self).exec()
+        d = SettingsDialog(self)
+        d.folders_changed.connect(self.folders_changed)
+        d.exec()
+
+    def folders_changed(self):
+        """A folder was added or removed, or something left out or taken back: index, and show it."""
+        self.library_page.reload()
+        self._update_note()
+        self.watcher.start()
+        if not folders():
+            self.show_page(LIBRARY)
 
     # --- asking ------------------------------------------------------------------------------------
 
@@ -464,7 +494,7 @@ class MainWindow(QMainWindow):
 
     def _model_progress(self, done, total):
         mb = f"{done / 1e6:.0f} of {total / 1e6:.0f} MB"
-        self.statusBar().showMessage(f"Downloading the search models: {mb}")
+        self.statusBar().showMessage(f"Downloading models · {100 * done // max(total, 1)}%")
         self._model_problem = None
         self._update_note(downloading=mb)
 
@@ -481,7 +511,7 @@ class MainWindow(QMainWindow):
 
     def _answers_progress(self, done, total):
         mb = f"{done / 1e6:,.0f} of {total / 1e6:,.0f} MB"
-        self.statusBar().showMessage(f"Downloading the answer model: {mb}")
+        self.statusBar().showMessage(f"Answer model · {100 * done // max(total, 1)}%")
         self._answers_problem = None
         self._update_note(answers=mb)
 

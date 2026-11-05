@@ -18,6 +18,11 @@ def inside(path: str, prefixes) -> bool:
     return any(path.startswith(p) for p in prefixes)
 
 
+def within(path: str, places) -> bool:
+    """Is path one of places, or inside one of them (folders)?"""
+    return any(path == p or path.startswith(folder_prefix(p)) for p in places)
+
+
 def lower_priority():
     """Run the calling thread at low priority, so the computer stays quick while files are read. (On a
     Mac, the whole app's, which is barely noticeable: the window does little work.)"""

@@ -261,6 +261,7 @@ QToolBar#main QToolButton:hover {{ background: {hover}; }}
 QToolBar#main QToolButton::menu-indicator {{ image: none; width: 0; }}
 QLabel#brand {{ font-weight: 600; font-size: 14px; }}
 QLabel#indexed {{ color: {ok}; font-size: 13px; }}
+QLabel#indexed[busy="true"] {{ color: {muted}; }}
 QLineEdit#search {{ background: {field}; border: 1px solid transparent; border-radius: 16px; min-height: 34px;
                     padding: 0 36px 0 36px; font-size: 14px; }}
 QLineEdit#search:focus {{ border-color: {accent}; }}
@@ -297,9 +298,6 @@ QLabel#panelPath {{ color: {muted}; font-size: 12px; }}
 QLabel#passageText {{ background: {side}; padding-right: 6px; font-size: 15px; }}
 QToolButton#panelClose {{ border: none; border-radius: 14px; min-width: 28px; min-height: 28px; padding: 0; }}
 QToolButton#panelClose:hover {{ background: {hover}; }}
-QFrame#folderRow {{ background: {card}; border-radius: 14px; }}
-QLabel#folderPath {{ font-weight: 600; background: transparent; }}
-QFrame#folderRow QLabel {{ background: transparent; }}
 QPushButton#filter {{ background: transparent; border: 1px solid {border}; border-radius: 14px; padding: 5px 14px;
                       font-weight: 500; color: {muted}; }}
 QPushButton#filter:hover {{ background: {hover}; color: {text}; }}
@@ -320,12 +318,12 @@ QTreeWidget#sidebar::item:selected {{ background: {selected}; color: {sideStrong
 QTreeWidget#sidebar::branch {{ background: {side}; image: none; border-image: none; }}
 
 QWidget#infoBody, QScrollArea#info {{ background: {side}; border: none; }}
-QFrame#statusPill {{ background: {side}; border: 1px solid {border}; border-radius: 13px; }}
-QFrame#statusPill QLabel {{ color: {muted}; font-size: 12px; background: transparent; border: none; }}
-QFrame#statusPill QProgressBar {{ background: {border}; border: none; border-radius: 2px; }}
-QFrame#statusPill QProgressBar::chunk {{ background: {accent}; border-radius: 2px; }}
-QFrame#statusPill QToolButton {{ color: {muted}; font-size: 12px; border: none; border-radius: 9px; padding: 1px 7px; }}
-QFrame#statusPill QToolButton:hover {{ background: {hover}; color: {text}; }}
+QWidget#sidePanel {{ background: {side}; }}
+QWidget#statusLine QLabel {{ color: {muted}; font-size: 12px; background: transparent; }}
+QWidget#statusLine QProgressBar {{ background: {border}; border: none; border-radius: 1px; }}
+QWidget#statusLine QProgressBar::chunk {{ background: {accent}; border-radius: 1px; }}
+QToolButton#statusStop {{ border: none; border-radius: 9px; min-width: 18px; min-height: 18px; padding: 0; }}
+QToolButton#statusStop:hover {{ background: {hover}; }}
 QFrame#banner {{ background: {accentSoft}; border: none; }}
 
 QPushButton {{ background: {raised}; color: {text}; border: 1px solid {border}; border-radius: 14px;
