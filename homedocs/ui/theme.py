@@ -456,9 +456,13 @@ def _draw_icon(name: str, p: QPainter):  # noqa: C901 (one plain branch per icon
         path.lineTo(19.5, 19.5)
         path.lineTo(19.5, 15)
         p.drawPath(path)
-    elif name == "quit":  # a power symbol: a circle with a line from its top to the middle, inside it
-        p.drawEllipse(QPointF(12, 12), 8.5, 8.5)
-        p.drawLine(QPointF(12, 7), QPointF(12, 12))
+    elif name == "quit":  # a power symbol: a circle open at the top, a line down through the gap (HomePix's)
+        path = QPainterPath()
+        ring = QRectF(3.5, 4.5, 17, 17)
+        path.arcMoveTo(ring, 125)
+        path.arcTo(ring, 125, 290)
+        p.drawPath(path)
+        p.drawLine(QPointF(12, 2.5), QPointF(12, 12.5))
     elif name == "more":
         p.save()
         p.setBrush(p.pen().color())
