@@ -305,6 +305,12 @@ and hands results back through a signal relay; `run_apart` gives downloads and i
 `Latest` is for searches; the streaming job (new) is for answers. Indexing and answering can run at the same
 time; SQLite's WAL mode lets search read while indexing writes.
 
+Nor does it do long work of its own while indexing runs. The Library table sorts its rows itself, in one Python
+sort (Qt's sorting asks Python for each row's value again and again: 5-10 s for 10,000 files, every 5 s while
+indexing, which froze the window), and it only reloads while the page is showing; a hidden one catches up when
+it's opened. Measured with 10,000 files: a reload takes 0.15 s on the UI thread, and the indexer's own threads
+(reading, embedding) hold it up for at most ~15 ms at a time.
+
 ## Memory
 
 Roughly: Python and Qt ~250 MB, chat model ~1.1 GB with its context, embedder and reranker ~200 MB, vectors
