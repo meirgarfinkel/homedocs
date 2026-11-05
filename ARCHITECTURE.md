@@ -25,6 +25,7 @@ the rules (what a passage is, how results are ranked, whether a sentence counts 
 | `settings.py` | `settings.json`: folders, theme, chosen models |
 | `db.py` | the schema (`TABLES`), versioned upgrades, backups |
 | `parsers.py` | one function per file type: returns the text, where each page starts, and the headings |
+| `pdf_layout.py` | a PDF page's text in reading order, from where each character sits |
 | `passages.py` | splits a file's text into passages (counted in words), each with its page, headings and position |
 | `tokenizer.py` | the BERT WordPiece tokenizer both ONNX models use, in plain Python (reads the model's `vocab.txt`) |
 | `indexer.py` | finds new, changed, moved and removed files, reads and saves them; runs passes in the background |
@@ -166,6 +167,18 @@ indexing together). For each folder in the settings:
    written, `#` and underlined headings found; text decoded as UTF-8, UTF-16 or Windows-1252). A failure stores
    the reason (a scanned PDF, a password, a damaged file) and the file is marked `failed`, not retried until it
    changes.
+
+   A PDF page is read in the order it's laid out, not the order the file draws it (`pdf_layout.py`): its
+   characters are put back into lines by position, then the page is cut at the gaps down it between two
+   columns of text, and at the gaps across it, and what's left is read a line at a time. The drawn order is
+   often wrong: tax software prints the blank form and then every value typed into it from the top again, so
+   "Wages ... 1a" and its "41,250" ended up in different passages and a question about wages found neither;
+   a W-2 draws its labels and its amounts apart. A gap counts as one between columns only when both sides read
+   as lines of text, so a form's amounts and a table's numbers stay on the rows of their labels. Text turned
+   sideways (a "Downloaded by" stamp) is kept apart, after the page; text off the page is left out, as before.
+   Dot leaders (". . . . . 1a") become one "…": each dot counted as a word, so a passage held only a line or two
+   of a form and cut the line's amount off. Checked on a sample of 3,200 pages of real PDFs: the same characters
+   as the drawn order, about 4 ms a page; the eval scores are unchanged (83/89, 33/37; by meaning 83 and 34).
 5. **Split:** `passages.py` cuts the text into passages of up to 60 words (roughly 90 tokens), counted in
    words so changing the model never means splitting again. Short passages won the eval: the re-ranker reads
    all of each one, and the model's reading budget holds several from different places. Sentences are added

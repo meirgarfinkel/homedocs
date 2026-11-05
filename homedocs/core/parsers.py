@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from xml.etree import ElementTree
 
+from . import pdf_layout
+
 
 class ReadError(Exception):
     """This file can't be read; the message says why, in words for the Library page."""
@@ -251,7 +253,8 @@ def read_pdf(path: Path) -> Doc:
         for i in range(len(pdf)):
             page = pdf[i]
             textpage = page.get_textpage()
-            text = _pdf_text(textpage.get_text_bounded())
+            laid_out = pdf_layout.page_text(textpage)  # (in reading order: see pdf_layout.py)
+            text = _pdf_text(textpage.get_text_bounded() if laid_out is None else laid_out)
             textpage.close()
             page.close()
             if parts:
@@ -275,10 +278,16 @@ def read_pdf(path: Path) -> Doc:
         pdf.close()
 
 
+_LEADER = re.compile(r"[ \t]*(?:\.[ \t]*){4,}")
+
+
 def _pdf_text(text: str) -> str:
     """A page's text, tidied: one kind of line ending, words split by a hyphen at the end of a line
-    joined again (PDFium marks those hyphens), and no trailing spaces."""
+    joined again (PDFium marks those hyphens), dot leaders made one "…", and no trailing spaces."""
     text = _clean(text)
     text = re.sub(r"[\x02­￾]\n", "", text)  # PDFium's soft hyphen, then the line break
     text = text.replace("\x02", "").replace("￾", "")
+    # a form's or a contents page's ". . . . . . 1a" (each dot would count as a word, leaving a passage room
+    # for a line or two of a tax form, and cutting the line's amount off)
+    text = _LEADER.sub(" … ", text)
     return "\n".join(line.rstrip() for line in text.split("\n")).strip()
