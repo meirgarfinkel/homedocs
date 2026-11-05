@@ -155,3 +155,35 @@ def test_the_short_words():
     assert brief({"running": True, "phase": "embedding", "done": 40, "todo": 100}) == "Finishing up · 40%"
     assert brief({"running": True, "phase": "scanning", "done": 0, "todo": 0}) == "Checking for changes"
     assert brief({"running": False, "phase": "idle"}) == ""
+
+
+def test_sorting_by_a_column(hd, app, folder):
+    w = open_window(app)
+    lib = w.library_page
+    try:
+        lib.add(str(folder))
+        wait_until(app, lambda: len(rows(lib)) == 3)
+        lib.table.sortByColumn(page.NAME, page.Qt.SortOrder.AscendingOrder)
+        assert list(rows(lib)) == ["2025 return.pdf", "notes.md", "scan.pdf"]
+        lib.table.sortByColumn(page.NAME, page.Qt.SortOrder.DescendingOrder)
+        assert list(rows(lib)) == ["scan.pdf", "notes.md", "2025 return.pdf"]
+    finally:
+        w.close()
+
+
+def test_the_hidden_library_waits_to_be_shown_before_reading_the_files(hd, app, folder, monkeypatch):
+    w = open_window(app)
+    lib = w.library_page
+    try:
+        lib.add(str(folder))
+        wait_until(app, lambda: len(rows(lib)) == 3 and not w.watcher.running())
+        w.show_page("ask")
+        reads = []
+        monkeypatch.setattr(page, "_read_rows", lambda *a: reads.append(1) or [])
+        lib.reload()  # (as indexing asks, every few seconds)
+        app.processEvents()
+        assert reads == []
+        w.show_page("library")
+        wait_until(app, lambda: reads)
+    finally:
+        w.close()

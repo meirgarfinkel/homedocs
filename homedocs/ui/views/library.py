@@ -31,7 +31,6 @@ from ..desktop import open_file, show_in_folder
 
 COLUMNS = ["Name", "Folder", "Type", "Passages", "Modified", "Status"]  # (the status, often long, last)
 NAME, FOLDER, KIND, PASSAGES, MODIFIED, STATUS = range(len(COLUMNS))
-SORT_ROLE = Qt.ItemDataRole.UserRole
 GROUP_ROLE = Qt.ItemDataRole.UserRole + 1
 
 # The filter buttons: label, and which rows each shows
@@ -66,14 +65,40 @@ def status_text(r: library.FileRow) -> str:
 
 
 class FileTable(QAbstractTableModel):
+    """The files, kept in the order shown. It sorts itself, in Python, in one go: Qt's own sorting asks for every
+    row's value again and again, which took 5-10 s on the UI thread for 10,000 files."""
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.rows: list[library.FileRow] = []
+        self.order = (MODIFIED, Qt.SortOrder.DescendingOrder)
 
     def set_rows(self, rows):
         self.beginResetModel()
-        self.rows = rows
+        self.rows = self._sorted(rows)
         self.endResetModel()
+
+    def sort(self, column, order=Qt.SortOrder.AscendingOrder):
+        self.order = (column, order)
+        self.layoutAboutToBeChanged.emit()
+        before = self.persistentIndexList()
+        kept = [(i, self.rows[i.row()]) for i in before]
+        self.rows = self._sorted(self.rows)
+        where = {id(r): n for n, r in enumerate(self.rows)}
+        self.changePersistentIndexList(before, [self.index(where[id(r)], i.column()) for i, r in kept])
+        self.layoutChanged.emit()
+
+    def _sorted(self, rows):
+        column, order = self.order
+        if column < 0:
+            return list(rows)
+        if column == PASSAGES:
+            key = lambda r: r.passages  # noqa: E731
+        elif column == MODIFIED:
+            key = lambda r: r.mtime  # noqa: E731
+        else:
+            key = lambda r: (self._text(r, column) or "").lower()  # noqa: E731
+        return sorted(rows, key=key, reverse=order == Qt.SortOrder.DescendingOrder)
 
     def rowCount(self, parent=QModelIndex()):  # noqa: N802, B008 (Qt's names)
         return 0 if parent.isValid() else len(self.rows)
@@ -95,8 +120,6 @@ class FileTable(QAbstractTableModel):
         r, c = self.rows[index.row()], index.column()
         if role == Qt.ItemDataRole.DisplayRole:
             return self._text(r, c)
-        if role == SORT_ROLE:
-            return {PASSAGES: r.passages, MODIFIED: r.mtime}.get(c, (self._text(r, c) or "").lower())
         if role == GROUP_ROLE:
             return group(r)
         if role == Qt.ItemDataRole.ToolTipRole:
@@ -133,7 +156,9 @@ class _Filter(QSortFilterProxyModel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.group, self.words = "all", ""
-        self.setSortRole(SORT_ROLE)
+
+    def sort(self, column, order=Qt.SortOrder.AscendingOrder):
+        self.sourceModel().sort(column, order)  # (it keeps the source's order: the source sorts itself)
 
     def set(self, group=None, words=None):
         self.beginFilterChange()
@@ -143,7 +168,7 @@ class _Filter(QSortFilterProxyModel):
 
     def filterAcceptsRow(self, row, parent):  # noqa: N802 (Qt's name)
         m = self.sourceModel()
-        if self.group != "all" and m.index(row, 0, parent).data(GROUP_ROLE) != self.group:
+        if self.group != "all" and group(m.rows[row]) != self.group:
             return False
         return not self.words or self.words in m.rows[row].path.lower()
 
@@ -159,6 +184,7 @@ class LibraryPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.loaded = False  # the table has been filled once
+        self._stale = True  # files changed while the page was hidden: read them when it's shown
         self._latest = workers.Latest()
         self.stack = QStackedLayout(self)
         self.stack.addWidget(self._empty_state())
@@ -299,9 +325,13 @@ class LibraryPage(QWidget):
     # --- the table -------------------------------------------------------------------------------
 
     def reload(self):
-        """Read the files again (on a worker thread) and show them."""
+        """Read the files again (on a worker thread) and show them; while the page is hidden, when it's shown
+        (indexing asks often, and the window has better things to do)."""
         roots = folders()
         self.stack.setCurrentIndex(1 if roots else 0)
+        self._stale = not self.isVisible()
+        if self._stale:
+            return
         self._latest.run(_read_rows, lambda rows, err: self._show(roots, rows, err), roots, left_out())
 
     def _show(self, roots, rows, err):
@@ -325,6 +355,11 @@ class LibraryPage(QWidget):
         n = counts["all"]
         self.count.emit(f"{n:,} file{'s' if n != 1 else ''}" if roots else "")
         self.loaded = True
+
+    def showEvent(self, e):  # noqa: N802 (Qt's name)
+        super().showEvent(e)
+        if self._stale:
+            self.reload()
 
     def _path(self, index) -> str:
         return self.model.rows[self.proxy.mapToSource(index).row()].path
