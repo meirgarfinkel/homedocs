@@ -594,14 +594,14 @@ def brand_mark(px: int = 24, dpr: float = 2.0) -> QPixmap:
     p = QPainter(pm)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
     p.scale(dpr * px / 64, dpr * px / 64)
-    roof_colour, page_colour = QColor("#F5F8FB"), QColor("#F2DFC4")
+    roof_colour, page_colour = QColor("#F5F8FB"), QColor("#D6BB95")
     p.setPen(Qt.PenStyle.NoPen)
-    p.setBrush(QColor("#536E83"))
+    p.setBrush(QColor("#455F74"))
     p.drawEllipse(QRectF(0, 0, 64, 64))
-    # the house, a little larger, centred in the circle (its middle, y 29.8, to the circle's)
+    # the house, a little larger, centred in the circle (its middle, y 30.3, to the circle's)
     p.translate(32, 32)
     p.scale(1.04, 1.04)
-    p.translate(-32, -29.8)
+    p.translate(-32, -30.3)
     p.setBrush(roof_colour)
     p.drawRoundedRect(QRectF(40, 16.5, 4, 7.5), 0.8, 0.8)  # chimney
 
@@ -618,10 +618,10 @@ def brand_mark(px: int = 24, dpr: float = 2.0) -> QPixmap:
     roof.lineTo(52, 30.9)
     p.drawPath(roof)
     p.setPen(pen(page_colour, 3.2))
-    p.drawRoundedRect(QRectF(23, 29, 18, 16.5), 1.5, 1.5)  # the page
+    p.drawRoundedRect(QRectF(23, 29, 18, 17.5), 1.5, 1.5)  # the page
     p.setPen(pen(page_colour, 2.6))
     p.drawLine(QPointF(27.5, 35), QPointF(33.25, 35))  # lines of text, the top one shorter
-    p.drawLine(QPointF(27.5, 40), QPointF(36.5, 40))
+    p.drawLine(QPointF(27.5, 40.5), QPointF(36.5, 40.5))
     p.end()
     pm.setDevicePixelRatio(dpr)
     return pm
