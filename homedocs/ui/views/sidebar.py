@@ -57,7 +57,7 @@ class RowDelegate(QStyledItemDelegate):
         chosen = option.state & QStyle.StateFlag.State_Selected
         right = option.rect.right() - RIGHT - (CHEVRON if has_arrow else 4)
         if count:
-            p.setPen(theme.color("sideLabel"))
+            p.setPen(theme.color("sideStrong" if chosen else "muted"))  # (HomePix's)
             p.setFont(theme.font(12))
             p.drawText(
                 QRectF(option.rect.left(), option.rect.top(), right - option.rect.left(), option.rect.height()),
@@ -222,7 +222,7 @@ class Sidebar(QTreeWidget):
         if not questions:
             return
         head = QTreeWidgetItem(["Recent questions"])
-        head.setFlags(Qt.ItemFlag.ItemIsEnabled)  # (a heading: not selectable)
+        head.setFlags(Qt.ItemFlag.NoItemFlags)  # (a heading: not chosen, and no hover)
         f = QFont(head.font(0))
         f.setWeight(QFont.Weight.Medium)
         f.setPointSizeF(f.pointSizeF() * 12 / 14)

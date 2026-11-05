@@ -71,7 +71,7 @@ class MenuButton(QToolButton):
         side = self.iconSize().width()
         p.translate((self.width() - side) / 2, (self.height() - side) / 2)
         p.scale(side / 24, side / 24)
-        pen = QPen(theme.color("accent"), 2.1)
+        pen = QPen(theme.color("text"), 2.1)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         p.setPen(pen)
         # first the top and bottom lines slide to the middle (the middle one fading), then they turn

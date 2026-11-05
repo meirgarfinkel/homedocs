@@ -296,7 +296,7 @@ class MainWindow(QMainWindow):
 
     def _restyle(self):
         """The icons, after the colours changed."""
-        self.sidebar_action.setIcon(theme.icon("sidebar", "accent"))
+        self.sidebar_action.setIcon(theme.icon("sidebar", "text", checked="text"))
         self.ask_box.icon = theme.icon("search", "accent")
         self.ask_box.clear_icon = theme.icon("clear", "muted")
         self.ask_box.update()
