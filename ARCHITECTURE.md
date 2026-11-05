@@ -112,7 +112,10 @@ huggingface-hub and an HTTP stack), downloads (`urllib`), keyword search (SQLite
 sha256, size, and the licence. Both search models use the same vocabulary, so one tokenizer serves both;
 `tests/test_tokenizer.py` checks it against ids from Hugging Face's `tokenizers`.
 
-- **Embedder:** bge-small-en-v1.5, full precision (133 MB). Questions get bge's query prefix; passages are
+- **Embedder:** bge-small-en-v1.5, the 8-bit version (34 MB, Xenova's conversion: BAAI publishes only full
+  precision). It scored the same as full precision on both eval sets (82/89 and 32/37 passages found, the same
+  questions missed) and embeds 1.5x faster. Changing it re-embeds every passage; the old model's files are
+  deleted (`models.RETIRED`). Questions get bge's query prefix; passages are
   embedded as `file name > headings` then the text, and the [CLS] output is normalized.
 - **Re-ranker:** ms-marco-MiniLM-L6-v2, the 8-bit version (23 MB): about 40% faster than full precision, which
   re-ranking needs (see the speed budget in REQUIREMENTS.md). It reads each passage's first
@@ -130,7 +133,7 @@ embedder; ONNX Runtime sessions are safe to use from several threads.
 
 1. No folders in `settings.json`: the window opens on the Library page, which shows one "Choose a folder"
    button.
-2. `ui/models_ui.py` downloads the search models (155 MB, with `urllib`) on their own thread
+2. `ui/models_ui.py` downloads the search models (57 MB, with `urllib`) on their own thread
    (`workers.run_apart`), each file to a `.part` file that resumes if interrupted, then checks its sha256 and
    renames it into place. A bad hash deletes it; no connection shows a note on the Ask page with "Try again".
    Until they're in, search is by keyword. (The `--self-test` never downloads.)

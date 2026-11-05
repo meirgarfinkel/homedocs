@@ -1,3 +1,3 @@
 """HomeDocs: ask questions about your own documents, fully offline, with checked citations."""
 
-__version__ = "0.7.1"
+__version__ = "0.8.1"

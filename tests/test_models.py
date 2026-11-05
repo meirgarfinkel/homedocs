@@ -92,3 +92,13 @@ def test_the_pinned_models():
         assert m.licence in ("MIT", "Apache 2.0")
         for f in m.files:
             assert f.url.startswith("https://huggingface.co/") and "/resolve/" in f.url and len(f.sha256) == 64
+
+
+def test_a_retired_model_is_deleted(hd):
+    old = hd.data_dir() / "models" / models.RETIRED[0]
+    old.mkdir(parents=True)
+    (old / "model.onnx").write_bytes(b"old")
+    keep = hd.data_dir() / "models" / models.EMBEDDER.key
+    keep.mkdir(parents=True)
+    models.remove_retired()
+    assert not old.exists() and keep.exists()
