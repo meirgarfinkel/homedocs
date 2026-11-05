@@ -133,3 +133,22 @@ def test_a_database_from_0_3_0_keeps_its_vectors_and_gains_questions(hd, monkeyp
     db.close()
     (backup,) = (hd.data_dir() / "backups").iterdir()
     assert backup.name.startswith("homedocs-v3-")
+
+
+def test_a_database_from_0_4_reads_its_files_again_for_the_shorter_passages(hd, monkeypatch):
+    monkeypatch.setattr(dbmod, "_ready_dbs", set())
+    with sqlite3.connect(dbmod.db_file()) as raw:  # what 0.4 made: version 4, a file read and one skipped
+        for create in [*dbmod.V2_TABLES.values(), dbmod.TABLES["vectors"], dbmod.TABLES["questions"]]:
+            raw.execute(create)
+        raw.execute(
+            "INSERT INTO files (path, name, size, mtime, hash, status) VALUES ('/a.txt', 'a.txt', 1, 1, 'h', 'indexed')"
+        )
+        raw.execute("INSERT INTO files (path, name, size, mtime, status) VALUES ('/b.pdf', 'b.pdf', 1, 1, 'skipped')")
+        raw.execute("INSERT INTO chunks (file_id, seq, char_start, char_end, text) VALUES (1, 0, 0, 5, 'hello')")
+        raw.execute("PRAGMA user_version = 4")
+    raw.close()
+    db = hd.open_db()
+    rows = db.execute("SELECT status, hash FROM files ORDER BY id").fetchall()
+    assert [tuple(r) for r in rows] == [("pending", None), ("skipped", None)]
+    assert db.execute("SELECT text FROM chunks").fetchone()[0] == "hello"  # (searched until it's read again)
+    db.close()

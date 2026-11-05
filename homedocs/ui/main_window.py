@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 
 from ..core import answer as answers
 from ..core import models as model_files
-from ..core.config import ANSWER_PASSAGES, data_dir
+from ..core.config import data_dir
 from ..core.db import open_db
 from ..core.search import Found, Searcher
 from ..core.settings import folders
@@ -412,7 +412,7 @@ class MainWindow(QMainWindow):
         n = self._answer_n
         card = self.ask_page.answer
         if answers.should_ask(found):
-            card.reading(min(ANSWER_PASSAGES, len(found.results)))
+            card.reading(len(answers.pick(found.results)))
         workers.run_streaming(
             lambda emit: self.answerer.answer(question, found, self.searcher.embedder, emit),
             lambda text: n == self._answer_n and card.writing(text),

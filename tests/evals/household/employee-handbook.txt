@@ -1,0 +1,70 @@
+title: Brightwave Analytics Employee Handbook 2026
+bookmarks: no
+---
+# Brightwave Analytics - Employee Handbook
+
+Edition: January 2026. This handbook describes Brightwave's main policies and benefits. It is not a contract of employment. Where a benefit plan document says something different, the plan document governs. Questions go to People Operations at people@brightwave.example.
+
+# 1. Working hours and remote work
+
+The standard work week is 40 hours. The office at 500 Commerce Street is open from 7 a.m. to 7 p.m. on weekdays. Core collaboration hours are 10 a.m. to 3 p.m. Eastern; meetings should be scheduled within them. Employees may work remotely up to three days a week with their manager's agreement, and must be in the office on Tuesdays and Thursdays unless they are approved as fully remote. Working from another country for more than 14 days in a year requires People Operations' approval, for tax reasons.
+
+# 2. Paid time off
+
+Full-time employees earn paid time off (PTO) each pay period, according to their years of service:
+
+| Years of service | PTO days per year | Accrued per pay period (26 periods) |
+| Less than 3 years | 15 days | 4.62 hours |
+| 3 to 6 years | 20 days | 6.15 hours |
+| 7 years or more | 25 days | 7.69 hours |
+
+Your rate changes at the start of the pay period after your work anniversary. Part-time employees earn PTO in proportion to their scheduled hours. Up to 5 unused PTO days carry over into the next year; any more are lost on December 31. New employees may use PTO after 90 days. Requests of more than three days should be made at least two weeks ahead in the HR portal. Unused PTO is paid out when you leave the company, up to 10 days.
+
+# 3. Holidays
+
+The company observes eleven paid holidays: New Year's Day, Martin Luther King Jr. Day, Presidents' Day, Memorial Day, Juneteenth, Independence Day, Labor Day, Thanksgiving Day and the day after, Christmas Eve, and Christmas Day. When a holiday falls on a Saturday it is observed on the Friday before; when it falls on a Sunday, on the Monday after. Employees also get one floating holiday each year to use on a day of their choice; it does not carry over.
+
+# 4. Sick leave
+
+Sick leave is separate from PTO: 8 days per year, given on January 1 (prorated for new employees), which do not carry over. Sick leave can be used for your own illness or medical appointments, or to care for a sick family member. A doctor's note is needed for absences longer than three consecutive working days. For longer illnesses, see short-term disability in section 7.
+
+# 5. Parental and family leave
+
+Employees who have worked here at least six months get 12 weeks of fully paid parental leave after the birth, adoption, or foster placement of a child, to be taken within the first year, in one block or in up to three blocks of at least two weeks each. Birthing parents also get the short-term disability benefit for the recovery period (usually 6 weeks, or 8 weeks after a cesarean birth) before parental leave starts. Bereavement leave is 5 paid days for a spouse, partner, child, or parent, and 3 days for other relatives.
+
+# 6. Benefits enrollment
+
+Health, dental, and vision coverage start on the first day of the month after your start date. Open enrollment for the next year runs from November 3 to November 14; changes made then take effect January 1. Outside open enrollment you can change your elections only within 30 days of a qualifying life event, such as marriage, a birth or adoption, or a spouse losing coverage. Brightwave pays 85% of the employee's premium and 60% of the premium for dependents.
+
+The medical plan is the Brightwave Silver PPO through Cobalt Health Plans. Dental coverage is with Brightline Dental: two cleanings a year at no cost, fillings at 80%, and crowns at 50%, with a $1,500 yearly maximum per person. Vision coverage pays for one eye exam a year and $150 toward glasses or contact lenses every 12 months.
+
+# 7. Disability and life insurance
+
+Short-term disability pays 70% of base salary for up to 12 weeks, after a 7-day waiting period. Long-term disability then pays 60% of base salary, up to $10,000 a month. Basic life insurance is two times your annual salary, up to $500,000, at no cost to you; you can buy more in open enrollment.
+
+# 8. Retirement plan
+
+Employees can contribute to the Brightwave 401(k) plan from their first paycheck. The company matches contributions dollar for dollar up to 4% of salary, deposited each pay period. Your own contributions are always 100% yours. The company match vests according to this schedule:
+
+| Years of service | Share of the match that is yours |
+| Less than 1 year | 0% |
+| 1 year | 50% |
+| 2 years or more | 100% |
+
+New employees are enrolled automatically at 3% of salary unless they choose a different rate within 30 days. The plan's record keeper is Fairway Retirement (1-800-555-0111).
+
+# 9. Expenses and travel
+
+Business expenses are reimbursed through the expense app within 30 days of the purchase, with a receipt for anything over $25. Expenses submitted more than 90 days after the purchase are not reimbursed. Meals while traveling are covered up to $60 per day; alcohol is not reimbursed. Book flights through the travel portal at least 14 days ahead, in economy class for flights under 6 hours. Mileage for business driving in your own car is reimbursed at the IRS rate, not including your normal commute. Home internet is reimbursed at $40 per month for employees who work remotely at least two days a week.
+
+# 10. Learning budget
+
+Each employee has a learning budget of $1,200 per year for courses, conferences, and books related to their work, approved by their manager. Tuition assistance for a degree program is up to $5,250 per year; if you leave within 12 months of a reimbursed course, you repay it.
+
+# 11. Equipment
+
+Brightwave provides a laptop and, for remote employees, a one-time $500 home office allowance for a desk, chair, or monitor. Laptops are replaced every three years. Report a lost or stolen laptop to IT at 555-0130 within 24 hours.
+
+# 12. Leaving the company
+
+Please give at least two weeks' notice. Your health coverage ends on the last day of the month in which you leave, and you can continue it through COBRA. Return your laptop and badge on your last day.

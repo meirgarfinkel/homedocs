@@ -1,0 +1,67 @@
+title: Quietline DW-600 Dishwasher - Use and Care Guide
+bookmarks: yes
+---
+# Quietline DW-600 Dishwasher - Use and Care Guide
+
+Model DW-600, 24-inch built-in dishwasher, 44 dBA. Read all instructions before using the dishwasher, and keep this guide. Serial number label: on the left edge of the door, visible when the door is open.
+
+# Important safety instructions
+
+Use the dishwasher only for its intended purpose. Do not wash plastic items unless they are marked dishwasher safe. Do not let children play in or on the dishwasher, and keep detergent out of their reach. Load sharp knives with the handles up. Do not sit or stand on the open door or the dish racks. If the dishwasher has not been used for two weeks or more, run the hot water at the kitchen sink first; hydrogen gas can build up in a hot water system that has not been used. Disconnect electrical power before servicing.
+
+# Loading
+
+Place cups, glasses, and small bowls on the upper rack, facing down. The upper rack can be raised or lowered by about 2 inches: pull it out fully and lift it up or press the levers on each side to lower it. Plates, pots, and large bowls go on the lower rack, facing the center. Silverware goes in the basket, mixing spoons, forks, and knives so they don't nest together. Make sure nothing blocks the spray arms; spin each arm by hand after loading to check. Do not wash cast iron, wooden utensils, pewter, or gold-trimmed china. Scrape food off dishes, but there is no need to rinse them first.
+
+# Detergent and rinse aid
+
+Use detergent made for automatic dishwashers only: powder, gel, or pods. Never use dish soap made for washing by hand: it makes suds that can leak out of the door. Put pods in the main detergent cup, not loose in the tub. If you have hard water (over 12 grains per gallon), use more detergent and the Hi-Temp option.
+
+Fill the rinse aid dispenser when the rinse aid light comes on; a full dispenser lasts about one month. Rinse aid helps dishes dry and prevents spots. The amount used can be set from 1 to 5 with the dial under the dispenser cap; the factory setting is 3. Turn it up if you see water spots, and down if you see streaks or foam.
+
+# Cycles
+
+| Cycle | Use for | Time | Water |
+| Normal | Everyday loads | 2 hr 10 min | 3.5 gallons |
+| Heavy | Pots, pans, baked-on food | 2 hr 45 min | 5.8 gallons |
+| Quick | Lightly soiled dishes, not a full load | 45 min | 3.2 gallons |
+| Eco | Uses the least water and energy | 3 hr 30 min | 2.4 gallons |
+| Rinse Only | Rinse dishes to wash later | 12 min | 1.2 gallons |
+
+Options: Hi-Temp raises the main wash temperature and adds about 20 minutes. Sanitize raises the final rinse to 155 degrees F and is available with Normal and Heavy only; the Sanitized light comes on at the end of the cycle if the temperature was reached. Heated Dry uses the heater to dry dishes; without it, the door opens 4 inches at the end of the cycle to let dishes air dry. Delay Start sets the start 1 to 24 hours later.
+
+Adding a dish. To add a dish after the cycle starts, open the door slowly, wait a few seconds for the spray to stop, add the dish, and close the door within 30 seconds; the cycle resumes on its own.
+
+Child lock. Press and hold Heated Dry for 3 seconds to lock or unlock the controls.
+
+# Cleaning and care
+
+Cleaning the filter. Clean the filter once a month, or more often if you don't scrape dishes. Remove the lower rack, turn the cylindrical filter counterclockwise and lift it out, then pull the flat mesh filter out from under it. Rinse both under warm running water with a soft brush. Do not use a wire brush or scouring pad. Put the flat filter back first, then reinstall the cylindrical filter by turning it clockwise until the arrows line up and it locks.
+
+Spray arms. If the spray arms' holes are clogged, unscrew the upper arm's nut by hand, pull the lower arm straight up, and clear the holes with a toothpick.
+
+Outside. Clean the stainless steel door with a soft cloth and warm soapy water, wiping in the direction of the grain. Do not use bleach or abrasive cleaners.
+
+Winter storage. If the dishwasher is left in an unheated place, have it drained by a service technician to prevent freezing; freeze damage is not covered by the warranty.
+
+# Troubleshooting
+
+Dishes are not clean: check that the spray arms turn freely, clean the filter, and use the Heavy cycle for pots. Make sure the water heater is set to at least 120 degrees F. Dishes are not dry: plastic items do not dry as well; use rinse aid and Heated Dry. White film on glasses: this comes from hard water; use more detergent and rinse aid. The dishwasher does not start: make sure the door is latched, Child Lock is off, and Delay Start is not set. There is water in the bottom after a cycle: a small amount around the filter is normal.
+
+# Error codes
+
+When there is a problem, the time display shows an error code and the dishwasher beeps three times.
+
+| Code | Meaning | What to do |
+| E1 | Water does not fill | Check that the water supply valve under the sink is open and the inlet hose isn't kinked. |
+| E2 | Water does not drain | Clean the filter, check the drain hose for kinks, and run the garbage disposal if the dishwasher drains into it. |
+| E3 | Water does not heat | Contact service. |
+| E4 | Water leak detected | Turn off power, check the door seal and the hoses under the sink, then contact service if it repeats. |
+| E5 | Temperature sensor fault | Contact service. |
+| E9 | A button is stuck | Wipe the control panel and restart. |
+
+To clear a code, press and hold Start for 3 seconds. If the code comes back, write it down and call Quietline service at 1-800-555-0155, Monday to Friday, 8 a.m. to 6 p.m.
+
+# Warranty
+
+The dishwasher has a one-year limited warranty on parts and labor from the date of purchase. The stainless steel tub and door liner are covered for the life of the dishwasher against leaks. The electronic control board and the racks are covered for parts only (not labor) in the second through fifth years. The warranty does not cover service calls to teach you how to use the dishwasher, damage from freezing or flooding, or use in a business. Keep your receipt, and register your product at quietline.example/register.

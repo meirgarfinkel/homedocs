@@ -13,7 +13,7 @@ import sqlite3
 
 from .config import data_dir, db_file
 
-VERSION = 4
+VERSION = 5
 
 # The whole schema, with a comment on every column. (Only SQL that SQLite 3.34 knows: the Linux build's.)
 TABLES: dict[str, str] = {
@@ -107,10 +107,15 @@ def _to_4(db):
     db.execute(TABLES["questions"])
 
 
+def _to_5(db):
+    """Passages are shorter now (0.5.0): every file read is read again, its old passages searched until then."""
+    db.execute("UPDATE files SET status = 'pending', hash = NULL WHERE status = 'indexed'")
+
+
 # As version 2 had them. (If one of these tables changes, its old CREATE goes here, written out.)
 V2_TABLES = {name: TABLES[name] for name in ("files", "chunks", "chunk_search", "chunks_fts")}
 
-UPGRADES = {1: _to_2, 2: _to_3, 3: _to_4}  # version: the step that brings it up to the next one
+UPGRADES = {1: _to_2, 2: _to_3, 3: _to_4, 4: _to_5}  # version: the step that brings it up to the next one
 
 
 def migrate(db: sqlite3.Connection, path):

@@ -1,0 +1,60 @@
+title: Quietline WM-450 Front-Load Washer - Owner's Manual
+bookmarks: no
+---
+# QUIETLINE WM-450 FRONT-LOAD WASHER - OWNER'S MANUAL
+
+Model WM-450, 4.5 cubic feet, stackable. For best results, read this manual before first use. The serial number is on a label inside the door, on the rim of the opening.
+
+# BEFORE FIRST USE
+
+Remove the four shipping bolts from the back of the washer with the wrench in the bag, and cover the holes with the plastic caps provided. Running the washer with the shipping bolts in place can damage it, and that damage is not covered by the warranty. Level the washer by turning the feet until it does not rock; an unlevel washer is noisy and can walk across the floor during the spin. Run one Clean Washer cycle with no clothes to clear out any water left from factory testing.
+
+# DETERGENT
+
+Use only high-efficiency (HE) detergent. Regular detergent makes too many suds, which can cause long cycle times, poor rinsing, and the Sd code. Use about 2 tablespoons of HE liquid for a normal load; follow the line on the cap for large loads. Pods go directly in the drum, at the back, before adding clothes, never in the dispenser drawer. Add liquid fabric softener to the softener compartment up to the MAX line. Liquid bleach goes in the bleach compartment, 1/3 cup at most.
+
+# CYCLES
+
+| Cycle | Use for | Time (approx.) | Max spin |
+| Normal | Cotton, linen, mixed loads | 52 min | 1,200 rpm |
+| Heavy Duty | Towels, work clothes, heavily soiled items | 1 hr 25 min | 1,200 rpm |
+| Quick Wash | Small, lightly soiled loads of 2 to 3 items | 15 min | 1,000 rpm |
+| Delicates | Silk, lingerie, washable wool | 40 min | 600 rpm |
+| Bulky | Comforters, sleeping bags, pillows | 1 hr 10 min | 800 rpm |
+| Sanitize | Heavily soiled cotton, diapers; heats water to 158 degrees F | 2 hr 5 min | 1,200 rpm |
+| Clean Washer | Cleaning the drum, no clothes | 1 hr 30 min | 1,000 rpm |
+
+Options: Extra Rinse adds one rinse (about 12 minutes). Steam reduces wrinkles and is available with Normal, Heavy Duty, and Bulky. Delay End sets when the cycle will finish, from 1 to 19 hours later. To add an item after the cycle starts, press Start/Pause; the door unlocks if the water level and temperature are low enough. The door stays locked while the drum spins, and for up to 2 minutes after a hot cycle.
+
+Do not wash items soiled with gasoline, oil, or cooking oil; they can catch fire. Do not wash rubber-backed rugs or waterproof mattress covers in this washer.
+
+# CARE AND CLEANING
+
+Run the Clean Washer cycle once a month with a washer cleaner tablet or 1 cup of liquid chlorine bleach; the Clean Washer light comes on after every 30 cycles as a reminder. After each wash, leave the door open a few inches to let the drum dry, and wipe the door gasket, including the fold at the bottom, where water and lint collect. Mold on the gasket is not covered by the warranty.
+
+Cleaning the drain pump filter. Clean the drain pump filter every three months, and whenever the washer shows the OE code. The filter is behind the small panel at the bottom right of the front. Place a shallow pan and a towel under the panel, since up to 1 gallon of water can come out. Open the panel, pull out the short drain hose and remove its cap to drain the water, then turn the filter cap counterclockwise and pull the filter out. Remove lint, coins, and hair, rinse the filter, and put it back by turning it clockwise until it is tight. Replace the hose cap and close the panel.
+
+Dispenser drawer. Pull the drawer out until it stops, press the release tab in the softener compartment, and remove it. Rinse it under warm water once a month.
+
+Inlet hoses. Check the inlet hoses once a year and replace them every five years. Use the stainless steel braided hoses supplied. Turn off the water faucets if you will be away for more than a few days.
+
+# ERROR CODES
+
+| Code | Meaning | What to do |
+| E1 | Water does not fill | Make sure both faucets are fully open and the inlet hoses are not kinked; clean the inlet screens. |
+| E4 | Load is unbalanced; the washer cannot spin | Pause, open the door, spread the load evenly or add a few towels, and restart. A single heavy item, such as a bath mat, often causes this. |
+| OE | Water does not drain | Clean the drain pump filter, and check that the drain hose is not kinked or pushed more than 8 inches into the standpipe. |
+| dE | Door is not locked | Close the door firmly; make sure no clothing is caught in it. |
+| Sd | Too many suds | Use less detergent, and only HE detergent. Run a Rinse+Spin cycle. |
+| LE | Motor fault | Unplug the washer for 1 minute. If the code returns, contact service. |
+| tE | Heater or temperature sensor fault | Contact service. |
+
+To clear a code, press Power, wait 10 seconds, and press Power again. Quietline washer service: 1-800-555-0156, Monday to Saturday, 8 a.m. to 8 p.m.
+
+# TROUBLESHOOTING
+
+The washer shakes or is noisy: make sure the shipping bolts are removed and the washer is level, with all four feet on the floor. Clothes are too wet after the cycle: the load may have been unbalanced (see E4), or the spin speed was set low. The washer smells musty: run Clean Washer, leave the door open between loads, and use less detergent. Water leaks in front: the door gasket may be dirty or torn, or the dispenser drawer may be clogged with detergent.
+
+# WARRANTY
+
+Parts and labor are covered for one year from the date of purchase. The direct drive motor is covered for 10 years, parts only. The stainless steel drum is covered for life, parts only. The warranty does not cover: installation or shipping bolt damage, the inlet hoses, mold and odors, damage from using regular (non-HE) detergent, or use other than in a single-family home. Proof of purchase is required for warranty service.

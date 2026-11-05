@@ -73,7 +73,7 @@ def test_a_heading_starts_a_passage_and_never_ends_one():
 
 
 def test_each_passage_knows_its_page():
-    page1, page2 = sentences(30), sentences(30, "thing")
+    page1, page2 = sentences(PASSAGE_WORDS // 10), sentences(PASSAGE_WORDS // 10, "thing")  # (each fits one passage)
     text = page1 + "\n\n" + page2
     doc = Doc(text, pages=[0, len(page1) + 2])
     parts = split(doc)
@@ -102,7 +102,7 @@ def ends_a_paragraph(doc, p):
 
 
 def test_a_full_passage_ends_where_a_paragraph_ends():
-    doc = Doc("\n\n".join(paragraph(i, 12) for i in range(10)))  # paragraphs of 96 words
+    doc = Doc("\n\n".join(paragraph(i, PASSAGE_WORDS // 25) for i in range(10)))  # a third of a passage each
     parts = split(doc)
     check_positions(doc, parts)
     assert len(parts) > 3

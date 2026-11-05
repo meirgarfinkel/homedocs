@@ -1,0 +1,44 @@
+title: Birch Point cabin - furnace and water heater service record
+bookmarks: no
+---
+# Birch Point cabin - furnace and water heater
+
+Kept in the kitchen drawer at the cabin, 14 Birch Point Road. Copy in the home files. Last updated October 2026.
+
+# Furnace
+
+Model: Comfortmax 96 propane furnace, 60,000 BTU, installed October 2021 by Allied Heating (555-0150). Serial number CM96-2109-44871.
+
+Filter: 16x25x1 pleated, MERV 8. Replace every 90 days; every 60 days during the winter, when the furnace runs the most. Spare filters are on the shelf above the furnace. Last replaced: September 12, 2026.
+
+Thermostat: Set to 58 degrees from November through April when nobody is at the cabin (the insurance requires at least 55). The thermostat sends an alert by text if the cabin drops below 45 degrees; the alert goes to Dana and to Tom Ellery, the caretaker.
+
+Annual tune-up: every fall, before the heating season, by a licensed technician. The furnace warranty covers parts for 10 years and the heat exchanger for life, as long as the annual service is done by a licensed technician and the record is kept. Labor was covered for the first year only.
+
+Propane: the 500-gallon tank is leased from Lakeside Propane (555-0162) for $85 a year and is on automatic delivery. They refill it when it reaches 30%. Gauge reading on October 1, 2026: 64%.
+
+# Service history
+
+| Date | Who | Work done | Cost |
+| Oct 14, 2021 | Allied Heating | Installed furnace and new ductwork | $6,850 |
+| Oct 7, 2022 | Allied Heating | Annual tune-up; no problems found | $129 |
+| Oct 11, 2023 | Allied Heating | Annual tune-up; replaced the inducer motor (under warranty, labor $180) | $309 |
+| Jan 22, 2024 | Allied Heating | No-heat call: cracked condensate line, replaced | $240 |
+| Oct 3, 2025 | Allied Heating | Annual tune-up; dirty flame sensor cleaned; igniter worn, replace within two years | $129 |
+| Oct 9, 2026 | North Shore HVAC (555-0175) | Annual tune-up; replaced igniter; tested carbon monoxide detectors | $284 |
+
+Allied Heating stopped serving Lake Alder in 2026; North Shore HVAC took over. Their technician recommended a new condensate pump by fall 2027.
+
+# Water heater
+
+Model: 40-gallon propane water heater, installed June 2018. Expected life is about 10 to 12 years, so plan to replace it by 2029.
+
+Flush the tank once a year to remove sediment: turn the gas control to "vacation", attach a hose to the drain valve, and drain a few gallons until the water runs clear. Last flushed: May 18, 2026. The temperature is set to 120 degrees F.
+
+The pressure relief valve was tested in March 2026 and works. The anode rod was replaced in May 2024.
+
+If there is no hot water: check that the pilot light is lit. To relight it, follow the label on the front of the tank. If it won't stay lit, the thermocouple probably needs replacing; call North Shore HVAC.
+
+# Closing the cabin for winter (if the heat will be off)
+
+If the cabin will not be heated over the winter, the water must be shut off and the pipes drained, or the insurance will not pay for frozen pipes. Steps: turn off the water heater and the well pump at the breaker panel (breakers 7 and 12); close the main water valve in the crawl space; open all faucets, upstairs first; drain the water heater; blow out the lines with the compressor in the shed; pour RV antifreeze into every sink and shower drain and the toilet bowls. North Shore HVAC will do the whole job for $220.
