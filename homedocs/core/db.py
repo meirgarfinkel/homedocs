@@ -13,7 +13,7 @@ import sqlite3
 
 from .config import data_dir, db_file
 
-VERSION = 5
+VERSION = 6
 
 # The whole schema, with a comment on every column. (Only SQL that SQLite 3.34 knows: the Linux build's.)
 TABLES: dict[str, str] = {
@@ -60,7 +60,9 @@ TABLES: dict[str, str] = {
             chunk_id INTEGER PRIMARY KEY REFERENCES chunks(id),
             model TEXT NOT NULL,            -- the model that made it (models.Model.key): another model's are
                                             -- made again, never mixed
-            vec BLOB NOT NULL               -- float32 numbers, unit length
+            vec BLOB NOT NULL,              -- float32 numbers, unit length
+            digest BLOB NOT NULL            -- a fingerprint of the text the model read (store.digest): a
+                                            -- passage with the same text (a copy of a file) reuses the vector
         )""",
     "questions": """
         CREATE TABLE questions (
@@ -80,6 +82,7 @@ INDEXES: list[str] = [
     "CREATE INDEX IF NOT EXISTS chunks_file ON chunks(file_id, seq)",
     "CREATE INDEX IF NOT EXISTS files_status ON files(status)",
     "CREATE INDEX IF NOT EXISTS questions_asked ON questions(asked)",
+    "CREATE INDEX IF NOT EXISTS vectors_digest ON vectors(model, digest)",
 ]
 
 
@@ -99,7 +102,7 @@ def _to_2(db):
 
 def _to_3(db):
     """Vectors, for searching by meaning."""
-    db.execute(TABLES["vectors"])
+    db.execute(V3_VECTORS)
 
 
 def _to_4(db):
@@ -112,10 +115,23 @@ def _to_5(db):
     db.execute("UPDATE files SET status = 'pending', hash = NULL WHERE status = 'indexed'")
 
 
+def _to_6(db):
+    """Each vector keeps a fingerprint of its text, so copies reuse it (0.9.0). The old ones are another model's
+    (arctic-embed-xs replaced bge-small), so they're dropped: every passage is embedded again."""
+    db.execute("DROP TABLE vectors")
+    db.execute(TABLES["vectors"])
+
+
+V3_VECTORS = """
+        CREATE TABLE vectors (
+            chunk_id INTEGER PRIMARY KEY REFERENCES chunks(id),
+            model TEXT NOT NULL,
+            vec BLOB NOT NULL
+        )"""
 # As version 2 had them. (If one of these tables changes, its old CREATE goes here, written out.)
 V2_TABLES = {name: TABLES[name] for name in ("files", "chunks", "chunk_search", "chunks_fts")}
 
-UPGRADES = {1: _to_2, 2: _to_3, 3: _to_4, 4: _to_5}  # version: the step that brings it up to the next one
+UPGRADES = {1: _to_2, 2: _to_3, 3: _to_4, 4: _to_5, 5: _to_6}  # version: the step that brings it up to the next one
 
 
 def migrate(db: sqlite3.Connection, path):

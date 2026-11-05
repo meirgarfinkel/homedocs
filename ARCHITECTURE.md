@@ -66,8 +66,9 @@ on Windows, `~/Library/Application Support/homedocs` on Mac, or `$HOMEDOCS_HOME`
   name, through the `chunk_search` view, so it keeps no copy of the text. `store.py` adds and removes its rows
   in the same transaction as the passages, never with triggers: removing a row needs exactly the text it was
   added with.
-- `vectors` (milestone 2): each passage's embedding as a float32 blob, plus which model made it (so changing models
-  re-embeds instead of mixing vectors)
+- `vectors` (milestone 2): each passage's embedding as a float32 blob, which model made it (so changing models
+  re-embeds instead of mixing vectors), and a fingerprint of the text the model read, so a copy of a passage
+  reuses its vector (0.9.0)
 - `questions` (milestone 3): each question asked, when, the answer text, and each sentence's source (passage
   and where in it), so a recent question reopens without asking the model again
 
@@ -112,10 +113,12 @@ huggingface-hub and an HTTP stack), downloads (`urllib`), keyword search (SQLite
 sha256, size, and the licence. Both search models use the same vocabulary, so one tokenizer serves both;
 `tests/test_tokenizer.py` checks it against ids from Hugging Face's `tokenizers`.
 
-- **Embedder:** bge-small-en-v1.5, the 8-bit version (34 MB, Xenova's conversion: BAAI publishes only full
-  precision). It scored the same as full precision on both eval sets (82/89 and 32/37 passages found, the same
-  questions missed) and embeds 1.5x faster. Questions get bge's query prefix; passages are
-  embedded as `file name > headings` then the text, and the [CLS] output is normalized.
+- **Embedder:** snowflake-arctic-embed-xs, Snowflake's own 8-bit version (23 MB). It has 6 layers to
+  bge-small's 12, so it embeds twice as fast, and it found as many of the evals' passages: 83/89 and 33/37
+  (bge-small 8-bit: 82 and 32; full precision the same). The evals barely tell embedders apart, since keyword
+  search and the re-ranker find most passages (with no search by meaning they still find 80 and 30), so
+  embedders are also compared by meaning alone (`--set KEYWORD_CANDIDATES=0`): arctic 83 and 34, bge-small
+  81 and 34. Questions get the query prefix (the same as bge's); passages are embedded as `file name > headings` then the text, and the [CLS] output is normalized.
 - **Re-ranker:** ms-marco-MiniLM-L6-v2, the 8-bit version (23 MB): about 40% faster than full precision, which
   re-ranking needs (see the speed budget in REQUIREMENTS.md). It reads each passage's first
   `RERANK_MAX_TOKENS`.
@@ -132,7 +135,7 @@ embedder; ONNX Runtime sessions are safe to use from several threads.
 
 1. No folders in `settings.json`: the window opens on the Library page, which shows one "Choose a folder"
    button.
-2. `ui/models_ui.py` downloads the search models (57 MB, with `urllib`) on their own thread
+2. `ui/models_ui.py` downloads the search models (46 MB, with `urllib`) on their own thread
    (`workers.run_apart`), each file to a `.part` file that resumes if interrupted, then checks its sha256 and
    renames it into place. A bad hash deletes it; no connection shows a note on the Ask page with "Try again".
    Until they're in, search is by keyword. (The `--self-test` never downloads.)
@@ -180,7 +183,11 @@ indexing together). For each folder in the settings:
 
 **Embedding is its own step** (milestone 2): after a pass, every passage without a vector from the current model
 gets one, in batches, the text given to the model being `file name > headings` then the passage, so a passage
-knows what it's about even when its own words don't say. Changing models only redoes this step.
+knows what it's about even when its own words don't say. Changing models only redoes this step. A passage
+whose text (name, headings and words) was embedded already reuses that vector: copies of files are common at
+home (a backup, a download kept twice), and in one real library 35% of passages were copies. Passages are
+fetched 512 at a time: finding them takes ~0.2 s in a big library, as long as embedding 16. With the faster
+model, that library embeds at ~184 passages a second (it was ~22).
 
 In the app, `ui/indexing.py` starts a pass on opening, when the app comes back into focus (at most once a
 minute), and from the Library page's "Look for changes", and shows progress at the bottom of the sidebar
