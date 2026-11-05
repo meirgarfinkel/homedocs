@@ -139,7 +139,9 @@ replaces HomePix's sand-on-ink look. The design board: https://claude.ai/artifac
   whether the sidebar is open or not), and the HomeDocs icon (`homedocs-icon.svg`) with the name, centred over
   the sidebar. The ask box in the middle. On the right, the indexed-files count, then the menu (☰) at the
   far end; the menu opens leftward, inside the window. No Info button.
-- **Sidebar:** 180 px. Ask and Library with icons, then "Recent questions".
+- **Sidebar:** 180 px. Ask and Library with icons, then "Recent questions". Library opens (the arrow at its
+  right, as in HomePix) on the folders searched, a tree with each folder's file count; choosing a folder shows
+  its files on the Library page, with its name as the title. Right-click a folder: Show in folder, Leave out.
 - **Status:** at the bottom of the sidebar, never over the page: one short line ("Checking for changes",
   "Indexing 312 of 1,204", "Finishing up · 40%", "Copied"), a thin progress bar under it, and a small ✕ to stop
   indexing. The full wording is on hover. With the sidebar closed, the indexed-files count in the top bar

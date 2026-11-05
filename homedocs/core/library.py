@@ -126,3 +126,42 @@ def files(db: sqlite3.Connection, roots: list[str], left: list[str] = ()) -> lis
         where = os.path.dirname(p)[len(root) + 1 :] if root else os.path.dirname(p)
         out.append(FileRow(p, name, root, where, kind, "left_out", None, False, 0, 0, mtime))
     return out
+
+
+def folder_counts(db: sqlite3.Connection) -> dict[str, int]:
+    """{folder: how many files are directly in it}, for every folder holding a file HomeDocs knows."""
+    counts: dict[str, int] = {}
+    for (path,) in db.execute("SELECT path FROM files"):
+        d = os.path.dirname(path)
+        counts[d] = counts.get(d, 0) + 1
+    return counts
+
+
+def folder_tree(roots: list[str], counts: dict[str, int]) -> dict:
+    """{root: node}, node = {"path", "name", "total" (files in it and below), "children": {name: node}}.
+    Folders without files (anywhere below) are left out, except the roots themselves. (As in HomePix.)"""
+    tree = {}
+    for root in roots:
+        node = {"path": root, "name": os.path.basename(root.rstrip("/\\")) or root, "total": 0, "children": {}}
+        prefix = folder_prefix(root)
+        for folder, n in counts.items():
+            if folder == root:
+                node["total"] += n
+                continue
+            if not folder.startswith(prefix):
+                continue
+            node["total"] += n
+            cur = node
+            for part in folder[len(prefix) :].split(os.sep):
+                child = cur["children"].get(part)
+                if child is None:
+                    child = cur["children"][part] = {
+                        "path": os.path.join(cur["path"], part),
+                        "name": part,
+                        "total": 0,
+                        "children": {},
+                    }
+                child["total"] += n
+                cur = child
+        tree[root] = node
+    return tree

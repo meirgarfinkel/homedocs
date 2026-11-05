@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 from ...core import library
 from ...core.db import open_db
 from ...core.settings import folders, left_out
+from ...core.util import folder_prefix
 from .. import theme, workers
 from ..desktop import open_file, show_in_folder
 
@@ -156,18 +157,23 @@ class _Filter(QSortFilterProxyModel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.group, self.words = "all", ""
+        self.folder = None  # a folder_prefix(): only the files in it (and its folders), or None for all
 
     def sort(self, column, order=Qt.SortOrder.AscendingOrder):
         self.sourceModel().sort(column, order)  # (it keeps the source's order: the source sorts itself)
 
-    def set(self, group=None, words=None):
+    def set(self, group=None, words=None, folder=False):
         self.beginFilterChange()
+        if folder is not False:
+            self.folder = folder_prefix(folder) if folder else None
         self.group = self.group if group is None else group
         self.words = self.words if words is None else words.lower().strip()
         self.endFilterChange(QSortFilterProxyModel.Direction.Rows)
 
     def filterAcceptsRow(self, row, parent):  # noqa: N802 (Qt's name)
         m = self.sourceModel()
+        if self.folder and not m.rows[row].path.startswith(self.folder):
+            return False
         if self.group != "all" and group(m.rows[row]) != self.group:
             return False
         return not self.words or self.words in m.rows[row].path.lower()
@@ -345,6 +351,18 @@ class LibraryPage(QWidget):
             for i in range(self.proxy.rowCount()):
                 if self._path(self.proxy.index(i, 0)) == keep:
                     self.table.selectRow(i)
+        self._recount()
+        self.loaded = True
+
+    def show_folder(self, folder: str | None):
+        """Only the files in folder (and the folders in it), or, None, all of them."""
+        self.proxy.set(folder=folder)
+        self._recount()
+
+    def _recount(self):
+        """The filter buttons' counts and the page header's, for the folder shown."""
+        prefix = self.proxy.folder
+        rows = [r for r in self.model.rows if not prefix or r.path.startswith(prefix)]
         counts = dict.fromkeys(GROUPS, 0)
         for r in rows:
             counts[group(r)] += 1
@@ -353,8 +371,7 @@ class LibraryPage(QWidget):
             b.setText(f"{GROUPS[key]}  {counts[key]:,}")
             b.setVisible(key in ("all", "indexed") or counts[key] > 0 or b.isChecked())
         n = counts["all"]
-        self.count.emit(f"{n:,} file{'s' if n != 1 else ''}" if roots else "")
-        self.loaded = True
+        self.count.emit(f"{n:,} file{'s' if n != 1 else ''}" if folders() else "")
 
     def showEvent(self, e):  # noqa: N802 (Qt's name)
         super().showEvent(e)

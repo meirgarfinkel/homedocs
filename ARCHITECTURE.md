@@ -194,6 +194,12 @@ count (and "not connected" when offline), Add folder…, and Remove, which asks 
 searched folder) and "Take back in". Leaving out a folder that holds things already left out replaces them.
 On first run the Library page still shows its one "Choose a folder" button.
 
+**The sidebar's folders** (`ui/views/sidebar.py`, as in HomePix): under Library, the folders searched as a tree
+(`library.folder_counts()` and `folder_tree()`, on a worker; folders without files are left out), each with
+its file count and, if it holds folders, an arrow at its right. A big library has thousands of folders
+(8,740 in one test), so a folder's rows are made only when it's opened, and the tree is rebuilt only when the
+counts change. Choosing one shows the Library page for just that folder.
+
 **The Library page** is for what's in those folders, file by file: the filters (All, Indexed, Waiting, Failed,
 Left out), the name filter, the table, and "Look for changes". Right-click a file: Open, Show in folder, Read
 again, Leave out this file, Leave out its folder. A left-out file or folder shows under "Left out", with Take

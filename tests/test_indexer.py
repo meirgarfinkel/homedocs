@@ -251,3 +251,12 @@ def test_only_one_copy_indexes_at_a_time(docs):
     ix.start()
     s = indexer.wait_for(ix)
     assert s["phase"] == "idle" and s["changes"] == 1 and s["error"] is None
+
+
+def test_the_folder_tree(tmp_path):
+    root = str(tmp_path / "docs")
+    counts = {root: 2, os.path.join(root, "a", "b"): 3, os.path.join(root, "c"): 1, "/elsewhere": 9}
+    (node,) = library.folder_tree([root], counts).values()
+    assert node["total"] == 6 and sorted(node["children"]) == ["a", "c"]
+    a = node["children"]["a"]
+    assert a["total"] == 3 and a["children"]["b"]["path"] == os.path.join(root, "a", "b")
