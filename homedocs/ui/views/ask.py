@@ -246,8 +246,16 @@ class AskPage(QWidget):
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.list = QWidget()
         self.list.setObjectName("resultList")
-        page = QHBoxLayout(self.list)
-        page.setContentsMargins(56, 40, 56, 24)
+        outer = QVBoxLayout(self.list)
+        outer.setContentsMargins(56, 40, 56, 24)
+        outer.setSpacing(0)
+        self.intro = QLabel("Ask a question about your documents in the search above.")  # (before the first)
+        self.intro.setObjectName("hint")
+        self.intro.setWordWrap(True)
+        self.intro.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        outer.addWidget(self.intro)
+        page = QHBoxLayout()
+        outer.addLayout(page, 1)
         column = QWidget()
         column.setMaximumWidth(COLUMN)
         page.addWidget(column, 1)
@@ -267,9 +275,10 @@ class AskPage(QWidget):
         note.addWidget(self.note_button)
         self.note.hide()
         self.list_lay.addWidget(self.note)
-        self.status = QLabel("Ask a question about your documents in the box above.")
+        self.status = QLabel()  # searching, nothing found, or what went wrong
         self.status.setObjectName("hint")
         self.status.setWordWrap(True)
+        self.status.hide()
         self.list_lay.addWidget(self.status)
         self.title = QLabel()  # the question
         self.title.setObjectName("questionTitle")
@@ -312,6 +321,7 @@ class AskPage(QWidget):
 
     def searching(self, question: str):
         self.question = question
+        self.intro.hide()
         self.answer.hide()
         self.title.setText(question)
         self.title.show()
@@ -322,6 +332,7 @@ class AskPage(QWidget):
     def show_found(self, question: str, found: Found, asked: str | None = None):
         """The passages found (asked: when a saved question was asked, shown instead of the search time)."""
         self.question = question
+        self.intro.hide()
         for c in self.cards:
             c.deleteLater()
         self.cards = []
@@ -345,6 +356,7 @@ class AskPage(QWidget):
         self.scroll.verticalScrollBar().setValue(0)
 
     def show_error(self, message: str):
+        self.intro.hide()
         self.heading.hide()
         self.status.setText(message)
         self.status.show()
