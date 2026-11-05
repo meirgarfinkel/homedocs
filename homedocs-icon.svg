@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="512" height="512">
   <!-- HomeDocs: a roof with a chimney over a page. The app draws the same (theme.brand_mark), and
        packaging/make_icons.py makes homedocs-icon.png, .ico and .icns from that. -->
-  <circle cx="32" cy="32" r="32" fill="#536E83"/>
-  <g transform="translate(32 32) scale(1.04) translate(-32 -29.8)">
+  <circle cx="32" cy="32" r="32" fill="#455F74"/>
+  <g transform="translate(32 32) scale(1.04) translate(-32 -30.3)">
     <rect x="40" y="16.5" width="4" height="7.5" rx="0.8" fill="#F5F8FB"/>
     <path d="M12 30.9L32 15.3L52 30.9" fill="none" stroke="#F5F8FB" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-    <rect x="23" y="29" width="18" height="16.5" rx="1.5" fill="none" stroke="#F2DFC4" stroke-width="3.2"/>
-    <path d="M27.5 35H33.25M27.5 40H36.5" fill="none" stroke="#F2DFC4" stroke-width="2.6" stroke-linecap="round"/>
+    <rect x="23" y="29" width="18" height="17.5" rx="1.5" fill="none" stroke="#D6BB95" stroke-width="3.2"/>
+    <path d="M27.5 35H33.25M27.5 40.5H36.5" fill="none" stroke="#D6BB95" stroke-width="2.6" stroke-linecap="round"/>
   </g>
 </svg>
