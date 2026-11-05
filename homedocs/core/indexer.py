@@ -2,9 +2,9 @@
 into passages, and saving those. One pass at a time, on a background thread.
 
 A pass, for each folder in the settings:
-1. Scan: walk the folder (skipping hidden files and folders, links to folders, and the kinds of file that
-   aren't read) and compare what's there with the files table. A folder that can't be reached, or that
-   has emptied completely (an unplugged drive's mount point looks just like that), marks its files
+1. Scan: walk the folder (skipping hidden files and folders, links to folders, what's left out, and the
+   kinds of file that aren't read) and compare what's there with the files table. A folder that can't be
+   reached, or that has emptied completely (an unplugged drive's mount point looks just like that), marks its files
    offline and keeps them.
 2. New files are added as pending; changed ones (other size or modified time) become pending.
 3. Read every pending file, newest first: each is read, split and saved in one transaction, so stopping
@@ -13,7 +13,7 @@ A pass, for each folder in the settings:
    again. One whose contents didn't change (only touched) is just marked as seen.
 4. Files that vanished and weren't found elsewhere are removed with their passages.
 
-Files from folders no longer in the settings are removed first. Nothing on disk is ever changed.
+Files from folders no longer in the settings, or left out, are removed first. Nothing on disk is ever changed.
 
 Then, once the embedding model is downloaded, embed_pass gives every passage without a vector one, a few at a
 time (newest files first), so search by meaning covers it. Vectors made by another model are dropped first.
@@ -32,8 +32,8 @@ import time
 from . import parsers, passages, store
 from .config import EMBED_BATCH, FILE_TYPES, MAX_FILE_MB, data_dir
 from .db import open_db
-from .settings import folders
-from .util import folder_prefix, inside, lower_priority
+from .settings import folders, left_out
+from .util import folder_prefix, inside, lower_priority, within
 
 
 class Stopped(Exception):
@@ -51,9 +51,11 @@ def _hidden(path: str, name: str) -> bool:
     return False
 
 
-def scan(root: str, should_stop=lambda: False) -> dict | None:
-    """Every readable kind of file under root: path -> (size, modified time). None if root can't be
-    reached. Raises Stopped if should_stop() says so (checked in every folder)."""
+def scan(root: str, should_stop=lambda: False, left=()) -> dict | None:
+    """Every readable kind of file under root, apart from what's left out (left: paths):
+    path -> (size, modified time). None if root can't be reached. Raises Stopped if should_stop() says so
+    (checked in every folder)."""
+    left = set(left)
     try:
         if not os.path.isdir(root):
             return None
@@ -71,12 +73,13 @@ def scan(root: str, should_stop=lambda: False) -> dict | None:
             if not _hidden(os.path.join(dirpath, d), d)
             and os.path.normcase(os.path.join(dirpath, d)) != skip
             and not os.path.islink(os.path.join(dirpath, d))
+            and os.path.join(dirpath, d) not in left
         ]
         for name in filenames:
             if os.path.splitext(name)[1].lower() not in FILE_TYPES:
                 continue
             p = os.path.join(dirpath, name)
-            if _hidden(p, name):
+            if p in left or _hidden(p, name):
                 continue
             try:
                 st = os.stat(p)
@@ -100,26 +103,26 @@ def index_pass(should_stop=lambda: False, report=lambda **info: None) -> dict:
     how it's going. Returns counts: read, failed, moved, removed, offline. Raises Stopped."""
     db = open_db()
     try:
-        return _index_pass(db, folders(), should_stop, report)
+        return _index_pass(db, folders(), should_stop, report, left_out())
     finally:
         db.close()
 
 
-def _index_pass(db, roots, should_stop, report) -> dict:
+def _index_pass(db, roots, should_stop, report, left=()) -> dict:
     info = {"read": 0, "failed": 0, "moved": 0, "removed": 0, "offline": 0}
     report(phase="scanning", done=0, todo=0, file=None)
     prefixes = [folder_prefix(r) for r in roots]
     known = {r["path"]: r for r in db.execute("SELECT id, path, size, mtime, status, hash FROM files")}
-    with db:  # files from folders that were removed
+    with db:  # files from folders that were removed, or left out
         for path, row in list(known.items()):
-            if not inside(path, prefixes):
+            if not inside(path, prefixes) or within(path, left):
                 store.drop_file(db, row["id"])
                 del known[path]
                 info["removed"] += 1
 
     vanished = {}  # id -> row: gone from a folder that could be looked through (maybe moved)
     for root, prefix in zip(roots, prefixes, strict=True):
-        found = scan(root, should_stop)
+        found = scan(root, should_stop, left)
         mine = {p: r for p, r in known.items() if p.startswith(prefix)}
         if found is None or (not found and mine):
             with db:
@@ -160,8 +163,8 @@ def _index_pass(db, roots, should_stop, report) -> dict:
         if should_stop():
             raise Stopped
         report(phase="reading", done=done, todo=len(todo), file=row["path"])
-        if not inside(row["path"], [folder_prefix(r) for r in folders()]):
-            continue  # its folder was removed meanwhile: the next pass drops it
+        if not inside(row["path"], [folder_prefix(r) for r in folders()]) or within(row["path"], left_out()):
+            continue  # removed or left out meanwhile: the next pass drops it
         _read_one(db, row, by_hash, vanished, info)
     report(phase="reading", done=len(todo), todo=len(todo), file=None)
 

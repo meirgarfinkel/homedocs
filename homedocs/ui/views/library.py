@@ -1,5 +1,6 @@
-"""The Library page: the folders being searched (add, remove, look again), and every file found in them
-with its status, passage count and, for one that couldn't be read, why."""
+"""The Library page: every file in the folders being searched, with its status, passage count and, for one that
+couldn't be read, why; and, file by file, open, show in folder, read again, leave out or take back in. (Which
+folders are searched is chosen in Settings; the first one here, on first run.)"""
 
 import datetime as dt
 import os
@@ -9,7 +10,6 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
     QFileDialog,
-    QFrame,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -19,17 +19,15 @@ from PySide6.QtWidgets import (
     QPushButton,
     QStackedLayout,
     QTableView,
-    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from ...core import library
 from ...core.db import open_db
-from ...core.settings import folders
+from ...core.settings import folders, left_out
 from .. import theme, workers
 from ..desktop import open_file, show_in_folder
-from .common import ElidedLabel
 
 COLUMNS = ["Name", "Folder", "Type", "Passages", "Modified", "Status"]  # (the status, often long, last)
 NAME, FOLDER, KIND, PASSAGES, MODIFIED, STATUS = range(len(COLUMNS))
@@ -37,16 +35,27 @@ SORT_ROLE = Qt.ItemDataRole.UserRole
 GROUP_ROLE = Qt.ItemDataRole.UserRole + 1
 
 # The filter buttons: label, and which rows each shows
-GROUPS = {"all": "All", "indexed": "Read", "waiting": "Waiting", "failed": "Couldn't read", "offline": "Offline"}
+GROUPS = {
+    "all": "All",
+    "indexed": "Read",
+    "waiting": "Waiting",
+    "failed": "Couldn't read",
+    "offline": "Offline",
+    "left_out": "Left out",
+}
 
 
 def group(r: library.FileRow) -> str:
+    if r.status == "left_out":
+        return "left_out"
     if r.offline:
         return "offline"
     return {"indexed": "indexed", "pending": "waiting"}.get(r.status, "failed")
 
 
 def status_text(r: library.FileRow) -> str:
+    if r.status == "left_out":
+        return "Left out: not read or searched"
     if r.offline:
         return "Offline: its folder can't be reached (still searchable)"
     if r.status == "indexed":
@@ -94,12 +103,14 @@ class FileTable(QAbstractTableModel):
             return r.path if c in (NAME, FOLDER) else status_text(r) if c == STATUS else None
         if role == Qt.ItemDataRole.ForegroundRole and c == STATUS and group(r) == "failed":
             return theme.color("danger")
-        if role == Qt.ItemDataRole.ForegroundRole and c in (FOLDER, KIND, PASSAGES, MODIFIED):
+        if role == Qt.ItemDataRole.ForegroundRole and (
+            c in (FOLDER, KIND, PASSAGES, MODIFIED) or r.status == "left_out"
+        ):
             return theme.color("muted")
         if role == Qt.ItemDataRole.TextAlignmentRole and c == PASSAGES:
             return int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         if role == Qt.ItemDataRole.DecorationRole and c == NAME:
-            return theme.icon("doc", "muted")
+            return theme.icon("folder" if r.kind == "Folder" else "doc", "muted")
         return None
 
     @staticmethod
@@ -115,7 +126,7 @@ class FileTable(QAbstractTableModel):
             return status_text(r)
         if c == PASSAGES:
             return f"{r.passages:,}" if r.status == "indexed" else ""
-        return dt.datetime.fromtimestamp(r.mtime).strftime("%b %d, %Y")
+        return dt.datetime.fromtimestamp(r.mtime).strftime("%b %d, %Y") if r.mtime else ""
 
 
 class _Filter(QSortFilterProxyModel):
@@ -137,42 +148,9 @@ class _Filter(QSortFilterProxyModel):
         return not self.words or self.words in m.rows[row].path.lower()
 
 
-class _FolderRow(QFrame):
-    """A folder being searched: its path, how many files, and an × to stop searching it."""
-
-    removed = Signal(str)
-
-    def __init__(self, folder: str, count: int, parent=None):
-        super().__init__(parent)
-        self.setObjectName("folderRow")
-        self.folder = folder
-        lay = QHBoxLayout(self)
-        lay.setContentsMargins(12, 6, 6, 6)
-        lay.setSpacing(10)
-        self.icon = QLabel()
-        self.path = ElidedLabel(folder)
-        self.path.setObjectName("folderPath")
-        self.path.setToolTip(folder)
-        self.count = QLabel(f"{count:,} file{'s' if count != 1 else ''}")
-        self.count.setObjectName("hint")
-        self.remove = QToolButton()
-        self.remove.setToolTip("Stop searching this folder (its files aren't touched)")
-        self.remove.setAccessibleName(f"Remove {folder}")
-        self.remove.clicked.connect(lambda: self.removed.emit(self.folder))
-        lay.addWidget(self.icon)
-        lay.addWidget(self.path, 1)
-        lay.addWidget(self.count)
-        lay.addWidget(self.remove)
-        self.restyle()
-
-    def restyle(self):
-        self.icon.setPixmap(theme.icon("folder", "muted").pixmap(18, 18))
-        self.remove.setIcon(theme.icon("clear", "muted"))
-
-
 class LibraryPage(QWidget):
-    """folders_changed(): a folder was added or removed (time to index); count(str): what the page header
-    says, like "1,204 files"."""
+    """folders_changed(): a folder was added, or something left out or taken back (time to index); rescan():
+    look through the folders now; count(str): what the page header says, like "1,204 files"."""
 
     folders_changed = Signal()
     rescan = Signal()
@@ -191,12 +169,7 @@ class LibraryPage(QWidget):
 
     def _restyle(self):
         """The icons, after the colours changed."""
-        self.add_button.setIcon(theme.icon("folder"))
         self.rescan_button.setIcon(theme.icon("restart"))
-        for i in range(self.folder_list.count()):
-            row = self.folder_list.itemAt(i).widget()
-            if row is not None:
-                row.restyle()
 
     # --- building -------------------------------------------------------------------------------
 
@@ -236,20 +209,6 @@ class LibraryPage(QWidget):
         lay = QVBoxLayout(w)
         lay.setContentsMargins(24, 8, 24, 16)
         lay.setSpacing(10)
-        self.folder_list = QVBoxLayout()
-        self.folder_list.setSpacing(4)
-        lay.addLayout(self.folder_list)
-        buttons = QHBoxLayout()
-        self.add_button = QPushButton("Add folder")
-        self.add_button.clicked.connect(self.add_folder)
-        self.rescan_button = QPushButton("Look for changes")
-        self.rescan_button.setToolTip("Look through the folders now for new, changed and removed files")
-        self.rescan_button.clicked.connect(self.rescan)
-        buttons.addWidget(self.add_button)
-        buttons.addWidget(self.rescan_button)
-        buttons.addStretch()
-        lay.addLayout(buttons)
-        lay.addSpacing(6)
 
         bar = QHBoxLayout()
         bar.setSpacing(6)
@@ -271,6 +230,10 @@ class LibraryPage(QWidget):
         self.find.setMaximumWidth(260)
         self.find.textChanged.connect(lambda t: self.proxy.set(words=t))
         bar.addWidget(self.find)
+        self.rescan_button = QPushButton("Look for changes")
+        self.rescan_button.setToolTip("Look through the folders now for new, changed and removed files")
+        self.rescan_button.clicked.connect(self.rescan)
+        bar.addWidget(self.rescan_button)
         lay.addLayout(bar)
 
         self.model = FileTable(self)
@@ -293,7 +256,7 @@ class LibraryPage(QWidget):
         head.setHighlightSections(False)
         head.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         head.setSectionResizeMode(STATUS, QHeaderView.ResizeMode.Stretch)
-        for col, width in ((NAME, 240), (FOLDER, 170), (KIND, 96), (PASSAGES, 76), (MODIFIED, 110)):
+        for col, width in ((NAME, 240), (FOLDER, 170), (KIND, 96), (PASSAGES, 76), (MODIFIED, 124)):
             self.table.setColumnWidth(col, width)
         self.table.doubleClicked.connect(lambda i: open_file(self._path(i)))
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -301,7 +264,7 @@ class LibraryPage(QWidget):
         lay.addWidget(self.table, 1)
         return w
 
-    # --- folders ---------------------------------------------------------------------------------
+    # --- folders (the first one: the rest are chosen in Settings) ---------------------------------
 
     def add_folder(self):
         start = folders()[-1] if folders() else os.path.expanduser("~")
@@ -317,10 +280,21 @@ class LibraryPage(QWidget):
         self.reload()
         self.folders_changed.emit()
 
-    def remove(self, folder: str):
-        library.remove_folder(folder)
+    def leave_out(self, path: str):
+        why = library.leave_out(path)
+        if why:
+            QMessageBox.information(self, "Leave out", why)
+            return
         self.reload()
         self.folders_changed.emit()
+
+    def take_back(self, path: str):
+        library.take_back(path)
+        self.reload()
+        self.folders_changed.emit()
+
+    def read_again(self, path: str):
+        workers.run(_read_again, lambda _, err: (self.reload(), self.rescan.emit()), path)
 
     # --- the table -------------------------------------------------------------------------------
 
@@ -328,7 +302,7 @@ class LibraryPage(QWidget):
         """Read the files again (on a worker thread) and show them."""
         roots = folders()
         self.stack.setCurrentIndex(1 if roots else 0)
-        self._latest.run(_read_rows, lambda rows, err: self._show(roots, rows, err), roots)
+        self._latest.run(_read_rows, lambda rows, err: self._show(roots, rows, err), roots, left_out())
 
     def _show(self, roots, rows, err):
         if err is not None:
@@ -341,22 +315,15 @@ class LibraryPage(QWidget):
             for i in range(self.proxy.rowCount()):
                 if self._path(self.proxy.index(i, 0)) == keep:
                     self.table.selectRow(i)
-        while self.folder_list.count():
-            item = self.folder_list.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-        for f in roots:
-            row = _FolderRow(f, sum(1 for r in rows if r.folder == f))
-            row.removed.connect(self.remove)
-            self.folder_list.addWidget(row)
         counts = dict.fromkeys(GROUPS, 0)
         for r in rows:
             counts[group(r)] += 1
-        counts["all"] = len(rows)
+        counts["all"] = len(rows) - counts["left_out"]
         for key, b in self.filter_buttons.items():
             b.setText(f"{GROUPS[key]}  {counts[key]:,}")
             b.setVisible(key in ("all", "indexed") or counts[key] > 0 or b.isChecked())
-        self.count.emit(f"{len(rows):,} file{'s' if len(rows) != 1 else ''}" if roots else "")
+        n = counts["all"]
+        self.count.emit(f"{n:,} file{'s' if n != 1 else ''}" if roots else "")
         self.loaded = True
 
     def _path(self, index) -> str:
@@ -366,16 +333,37 @@ class LibraryPage(QWidget):
         index = self.table.indexAt(pos)
         if not index.isValid():
             return
-        path = self._path(index)
+        r = self.model.rows[self.proxy.mapToSource(index).row()]
+        path = r.path
         m = QMenu(self)
-        m.addAction("Open", lambda: open_file(path))
-        m.addAction("Show in folder", lambda: show_in_folder(path))
+        if r.status == "left_out":
+            m.addAction("Take back in", lambda: self.take_back(path))
+            m.addAction("Show in folder", lambda: show_in_folder(path))
+        else:
+            m.addAction("Open", lambda: open_file(path))
+            m.addAction("Show in folder", lambda: show_in_folder(path))
+            m.addAction("Read again", lambda: self.read_again(path))
+            m.addSeparator()
+            m.addAction("Leave out this file", lambda: self.leave_out(path))
+            if r.where:  # (in a subfolder: the searched folder itself is removed in Settings)
+                m.addAction(
+                    f"Leave out the folder {os.path.basename(os.path.dirname(path))}",
+                    lambda: self.leave_out(os.path.dirname(path)),
+                )
         m.exec(self.table.viewport().mapToGlobal(pos))
 
 
-def _read_rows(roots):
+def _read_rows(roots, left):
     db = open_db()
     try:
-        return library.files(db, roots)
+        return library.files(db, roots, left)
+    finally:
+        db.close()
+
+
+def _read_again(path):
+    db = open_db()
+    try:
+        library.read_again(db, path)
     finally:
         db.close()

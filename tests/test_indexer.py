@@ -146,6 +146,31 @@ def test_a_removed_folder_drops_its_files(docs, db):
     assert docs.joinpath("todo.txt").exists()  # nothing on disk touched
 
 
+def test_left_out_places_arent_read_and_come_back_when_taken_back(docs, db):
+    index_pass()
+    assert library.leave_out(docs / "insurance") is None
+    assert library.leave_out(docs / "todo.txt") is None
+    assert library.leave_out(docs / "insurance" / "Car insurance.pdf") is None  # (inside one left out already)
+    assert settings.left_out() == [str(docs / "insurance"), str(docs / "todo.txt")]
+    assert index_pass()["removed"] == 2
+    assert sorted(statuses(db)) == ["lease.docx", "notes.md"] and found(db, "deductible") == []
+    assert index_is_sound(db)
+    assert docs.joinpath("todo.txt").exists()  # nothing on disk touched
+    library.take_back(str(docs / "insurance"))
+    index_pass()
+    assert found(db, "deductible") == ["Car insurance.pdf"]
+    assert "isn't inside" in library.leave_out(docs.parent)
+    assert "remove it instead" in library.leave_out(docs)
+    library.remove_folder(str(docs))  # what was left out inside it goes with it
+    assert settings.left_out() == []
+
+
+def test_read_again_reads_an_unchanged_file(docs, db):
+    index_pass()
+    library.read_again(db, str(docs / "todo.txt"))
+    assert index_pass()["read"] == 1
+
+
 def test_a_file_that_cant_be_read_says_why_and_waits_until_it_changes(docs, db, monkeypatch):
     make_pdf(docs / "scan.pdf", [""])
     (docs / "broken.docx").write_bytes(b"PK broken")

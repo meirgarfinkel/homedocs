@@ -1,5 +1,5 @@
 """The Library page: choosing the first folder, the files appearing as they're read with their status,
-the filters, and removing a folder."""
+the filters, leaving out and taking back; Settings' folders; and the status line under the sidebar."""
 
 import os
 
@@ -38,8 +38,6 @@ def test_choosing_a_folder_reads_its_files(hd, app, folder):
         assert r["2025 return.pdf"] == "Read" and r["notes.md"] == "Read"
         assert "scanned image" in r["scan.pdf"]
         assert w.count_label.text() == "3 files"
-        (row,) = [lib.folder_list.itemAt(i).widget() for i in range(lib.folder_list.count())]
-        assert row.path.text() == str(folder) and row.count.text() == "3 files"
         i = next(i for i in range(lib.proxy.rowCount()) if lib.proxy.index(i, 0).data() == "2025 return.pdf")
         assert lib.proxy.index(i, page.FOLDER).data() == os.path.join("docs", "taxes")
         assert lib.proxy.index(i, page.PASSAGES).data() == "1"
@@ -63,16 +61,49 @@ def test_filters_show_one_kind_of_file(hd, app, folder):
         w.close()
 
 
-def test_removing_a_folder_forgets_its_files(hd, app, folder):
+def test_settings_removes_a_folder_only_when_confirmed(hd, app, folder, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    from homedocs.ui.views.settings_dialog import SettingsDialog
+
+    asked = []
+    answer = [QMessageBox.StandardButton.Cancel]
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a: (asked.append(a[2]), answer[0])[1]))
     w = open_window(app)
     lib = w.library_page
     try:
         lib.add(str(folder))
-        wait_until(app, lambda: len(rows(lib)) == 3)
-        lib.folder_list.itemAt(0).widget().remove.click()
-        assert lib.stack.currentIndex() == 0
+        wait_until(app, lambda: len(rows(lib)) == 3 and not w.watcher.running())
+        d = SettingsDialog(w)
+        d.folders_changed.connect(w.folders_changed)
+        wait_until(app, lambda: "3 files" in d.folder_list.item(0).text())
+        d.folder_list.item(0).setSelected(True)
+        d.remove_button.click()
+        assert "3 files leave the search" in asked[0] and d.folder_list.count() == 1  # cancelled
+        answer[0] = QMessageBox.StandardButton.Yes
+        d.remove_button.click()
+        assert d.folder_list.count() == 0 and lib.stack.currentIndex() == 0
         wait_until(app, lambda: not w.watcher.running() and lib.model.rows == [])
         assert folder.joinpath("notes.md").exists()
+        d.close()
+    finally:
+        w.close()
+
+
+def test_leaving_out_and_taking_back_from_the_library(hd, app, folder):
+    w = open_window(app)
+    lib = w.library_page
+    try:
+        lib.add(str(folder))
+        wait_until(app, lambda: len(rows(lib)) == 3 and not w.watcher.running())
+        lib.leave_out(str(folder / "taxes"))
+        wait_until(app, lambda: not w.watcher.running() and "2025 return.pdf" not in rows(lib))
+        assert rows(lib)["taxes"].startswith("Left out") and w.count_label.text() == "2 files"
+        lib.filter_buttons["left_out"].click()
+        assert list(rows(lib)) == ["taxes"]
+        lib.filter_buttons["all"].click()
+        lib.take_back(str(folder / "taxes"))
+        wait_until(app, lambda: rows(lib).get("2025 return.pdf") == "Read")
     finally:
         w.close()
 
@@ -91,14 +122,36 @@ def test_a_folder_inside_one_already_searched_isnt_added(hd, app, folder, monkey
         w.close()
 
 
-def test_progress_shows_in_the_status_pill(hd, app, folder):
+def test_progress_shows_under_the_sidebar_in_a_few_words(hd, app, folder):
     w = open_window(app)
     try:
         seen = []
-        w.watcher.state.connect(lambda s: seen.append(w.background.label.text()))
+        w.watcher.state.connect(lambda s: seen.append(w.status_line.text))
         w.library_page.add(str(folder))
         wait_until(app, lambda: seen and not w.watcher.running())
-        wait_until(app, lambda: w.background.isHidden() or not w.background.label.text())
-        assert any(t.startswith(("Reading files", "Looking for")) for t in seen)
+        wait_until(app, lambda: not w.status_line.text)
+        assert any(t.startswith(("Indexing", "Checking")) for t in seen)
+        assert w.sidebar_dock.isAncestorOf(w.status_line)
     finally:
         w.close()
+
+
+def test_with_the_sidebar_closed_the_top_bar_shows_the_status(hd, app):
+    w = open_window(app)
+    try:
+        w.sidebar_action.trigger()
+        w.statusBar().showMessage("Copied")
+        assert w.indexed.text() == "Copied"
+        w.statusBar().clearMessage()
+        assert w.indexed.text() != "Copied"
+    finally:
+        w.close()
+
+
+def test_the_short_words():
+    from homedocs.ui.indexing import brief
+
+    assert brief({"running": True, "phase": "reading", "done": 312, "todo": 1204}) == "Indexing 312 of 1,204"
+    assert brief({"running": True, "phase": "embedding", "done": 40, "todo": 100}) == "Finishing up · 40%"
+    assert brief({"running": True, "phase": "scanning", "done": 0, "todo": 0}) == "Checking for changes"
+    assert brief({"running": False, "phase": "idle"}) == ""

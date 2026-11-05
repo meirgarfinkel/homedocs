@@ -1,4 +1,5 @@
-"""The user's settings (which folders to search, the theme), kept in settings.json in the data folder."""
+"""The user's settings (which folders to search, what's left out of them, the theme), kept in settings.json in
+the data folder."""
 
 import json
 from pathlib import Path
@@ -27,3 +28,8 @@ def save_settings(s: dict):
 
 def folders() -> list[str]:
     return list(load_settings().get("folders", []))
+
+
+def left_out() -> list[str]:
+    """Subfolders and single files inside the searched folders that aren't read or searched."""
+    return list(load_settings().get("left_out", []))

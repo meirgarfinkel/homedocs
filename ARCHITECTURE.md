@@ -28,7 +28,7 @@ the rules (what a passage is, how results are ranked, whether a sentence counts 
 | `passages.py` | splits a file's text into passages (counted in words), each with its page, headings and position |
 | `tokenizer.py` | the BERT WordPiece tokenizer both ONNX models use, in plain Python (reads the model's `vocab.txt`) |
 | `indexer.py` | finds new, changed, moved and removed files, reads and saves them; runs passes in the background |
-| `library.py` | the folders being searched (add, remove) and the file list the Library page shows |
+| `library.py` | the folders being searched (add, remove), what's left out (leave out, take back in), and the file list the Library page shows |
 | `store.py` | saving and removing passages with their keyword index rows; the passage queries; the vector matrix |
 | `search.py` | keyword + vector search, fusion, reranking |
 | `answer.py` | decides whether to ask the model, builds the prompt, streams the answer, finds each sentence's source |
@@ -46,7 +46,7 @@ on Windows, `~/Library/Application Support/homedocs` on Mac, or `$HOMEDOCS_HOME`
 |---|---|
 | `homedocs.db` | the database (SQLite): files, passages, the keyword index, vectors and questions |
 | `models/` | the three models, downloaded once and checked by sha256 |
-| `settings.json` | the folders to search and the user's choices |
+| `settings.json` | the folders to search, what's left out of them, and the user's choices |
 | `window.ini` | window size and layout |
 | `backups/` | a copy of the database before each upgrade |
 | `app.log` | the app's output when it's started from the menu (no terminal) |
@@ -141,9 +141,11 @@ embedder; ONNX Runtime sessions are safe to use from several threads.
 `core/indexer.py` runs one pass at a time on a background thread (a lock file stops two copies of the app
 indexing together). For each folder in the settings:
 
-0. Files from folders no longer in the settings are removed (removing a folder in the Library starts a pass).
+0. Files from folders no longer in the settings, or left out, are removed (removing a folder or leaving
+   something out starts a pass).
 1. **Scan:** walks the folder, skipping hidden files and folders (dot names, and Windows' hidden flag), Word's
-   `~$` lock files, links to folders, and kinds of file it doesn't read, and compares what it finds with
+   `~$` lock files, links to folders, what's left out (`settings.json` `"left_out"`: subfolders and single
+   files), and kinds of file it doesn't read, and compares what it finds with
    `files`. A folder that can't be reached, or that has emptied completely while files were known in it (an
    unplugged drive's mount point looks like that), marks its files offline and keeps them. Files over 100 MB
    are listed as `skipped`.
@@ -179,9 +181,21 @@ gets one, in batches, the text given to the model being `file name > headings` t
 knows what it's about even when its own words don't say. Changing models only redoes this step.
 
 In the app, `ui/indexing.py` starts a pass on opening, when the app comes back into focus (at most once a
-minute), and from the Library page's "Look for changes", and shows progress in the status pill with a Stop
-button. There's no live file watching: it's unreliable on network drives, and costs resources all the time.
+minute), and from the Library page's "Look for changes", and shows progress at the bottom of the sidebar
+(`ui/status.py`: a short line, a thin bar and a ✕ to stop; the full wording on hover). There's no live file watching: it's unreliable on network drives, and costs resources all the time.
 The Library page reads `files` for its table (`library.files()`), on a worker thread.
+
+**Folders** are chosen in Settings (`ui/views/settings_dialog.py`): the folders searched, each with its file
+count (and "not connected" when offline), Add folder…, and Remove, which asks first ("Stop searching
+~/Documents? Its 1,204 files leave the search; nothing on disk changes."). Under them, what's left out, with
+"Leave out a subfolder…" (a folder picker that starts in the chosen folder and only accepts one inside a
+searched folder) and "Take back in". Leaving out a folder that holds things already left out replaces them.
+On first run the Library page still shows its one "Choose a folder" button.
+
+**The Library page** is for what's in those folders, file by file: the filters (All, Indexed, Waiting, Failed,
+Left out), the name filter, the table, and "Look for changes". Right-click a file: Open, Show in folder, Read
+again, Leave out this file, Leave out its folder. A left-out file or folder shows under "Left out", with Take
+back in.
 
 ### Asking: search
 
@@ -346,4 +360,6 @@ bindings against a tiny model when llama.cpp is built, and is skipped otherwise.
 | colours, font, icons (the Paper look: REQUIREMENTS) | `ui/theme.py` |
 | the top bar and its menu | `ui/main_window.py`, `ui/menu.py` |
 | a page or panel of the window | `ui/views/` |
+| the folders searched and what's left out | `core/library.py`, `ui/views/settings_dialog.py` |
+| the status line at the bottom of the sidebar | `ui/status.py` |
 | streaming and cancelling background work | `ui/workers.py` |
