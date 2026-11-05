@@ -233,8 +233,9 @@ with "Open file" and "Show in folder".
 
 ### Sources and the Info panel
 
-Clicking `[n]` shows the passage in the Info panel (the right dock, from HomePix), with the supporting
-sentence highlighted, the file name and page, and "Open file" (`QDesktopServices.openUrl`).
+Clicking `[n]` or a passage shows it in the Info panel (the right dock, from HomePix), with the supporting
+sentence highlighted, the file name and page, and "Open file" (`QDesktopServices.openUrl`). The panel has no
+button in the top bar: it opens on a click and closes with its ✕ or Ctrl+I.
 
 ### Evals and tuning
 
@@ -342,6 +343,7 @@ bindings against a tiny model when llama.cpp is built, and is skipped otherwise.
 | the llama.cpp calls | `core/llm.py`, `native/hd_llama.c` |
 | which models are used, their URLs and hashes | `core/models.py` |
 | the eval set, its documents, or what it measures | `tests/evals/`, `core/evals.py` |
-| colours, font, icons | `ui/theme.py` |
+| colours, font, icons (the Paper look: REQUIREMENTS) | `ui/theme.py` |
+| the top bar and its menu | `ui/main_window.py`, `ui/menu.py` |
 | a page or panel of the window | `ui/views/` |
 | streaming and cancelling background work | `ui/workers.py` |
