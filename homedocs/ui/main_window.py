@@ -2,6 +2,7 @@
 indexed-files count and the menu), the sidebar with the status line at its bottom, the Ask and Library pages,
 and the Info panel at the side."""
 
+import os
 import time
 
 import shiboken6
@@ -25,12 +26,14 @@ from PySide6.QtWidgets import (
 )
 
 from ..core import answer as answers
+from ..core import library
 from ..core import models as model_files
 from ..core.config import data_dir
 from ..core.db import open_db
 from ..core.search import Found, Searcher
 from ..core.settings import folders
 from . import theme, workers
+from .desktop import show_in_folder
 from .indexing import IndexWatcher
 from .menu import MenuButton, add_row
 from .models_ui import ModelLoader
@@ -206,6 +209,11 @@ class MainWindow(QMainWindow):
         theme.signals.changed.connect(self._restyle)
         self._restyle()
         self.sidebar.chosen.connect(self.show_page)
+        self.sidebar.folder_chosen.connect(lambda path: self.show_page(LIBRARY, path))
+        self.sidebar.folder_menu.connect(self._folder_menu)
+        self._folders_job = workers.Latest()
+        self._folders = None  # the folder tree the sidebar shows
+        self.watcher.changed.connect(self._load_folders)
 
         geometry = self.settings.value("geometry")
         if geometry is not None:
@@ -230,6 +238,25 @@ class MainWindow(QMainWindow):
         self.watcher.start_if_due()  # look for new and changed files
         workers.run(_recent, lambda rows, err: rows and self.sidebar.set_recent(rows))
         self._count_indexed()
+        self._load_folders()
+
+    def _load_folders(self):
+        """The folders under Library in the sidebar, with their counts (on a worker: 10,000 files take 0.1 s)."""
+        self._folders_job.run(_folder_tree, self._got_folders, folders())
+
+    def _got_folders(self, tree, err):
+        if err is None and tree != self._folders:  # (indexing asks every few seconds: often nothing changed)
+            self._folders = tree
+            self.sidebar.set_folders(tree)
+
+    def _folder_menu(self, path, at):
+        m = QMenu(self)
+        m.addAction("Show in folder", lambda: show_in_folder(path))
+        if path in folders():
+            m.addAction("Remove or change folders in Settings...", self.open_settings)
+        else:
+            m.addAction("Leave out this folder", lambda: self.library_page.leave_out(path))
+        m.exec(at)
 
     def _count_indexed(self):
         def show(n, err):
@@ -363,14 +390,18 @@ class MainWindow(QMainWindow):
         add_row(m, self.add_action("Check for updates", self.updater.check), "update")
         add_row(m, self.add_action("Quit", self.close, [QKeySequence.StandardKey.Quit]), "quit")
 
-    def show_page(self, place: str):
+    def show_page(self, place: str, folder: str | None = None):
+        """A page; for the Library, optionally just one folder's files (chosen under Library in the sidebar)."""
         self.stack.setCurrentWidget(self.pages[place])
-        self.page_title.setText(PAGES[place])
+        self.page_title.setText(os.path.basename(folder) if folder else PAGES[place])
+        self.page_title.setToolTip(folder or "")
         self.page_header.setVisible(place != ASK)  # (the Ask page's title is the question)
         self.count_label.setText("")
         if place == LIBRARY:
+            self.library_page.show_folder(folder)
             self.library_page.reload()
-        self.sidebar.select(place)
+        if not (folder and self.sidebar.select_folder(folder)):
+            self.sidebar.select(place)
 
     def bring_forward(self):
         if self.isMinimized():
@@ -388,6 +419,7 @@ class MainWindow(QMainWindow):
         """A folder was added or removed, or something left out or taken back: index, and show it."""
         self.library_page.reload()
         self._update_note()
+        self._load_folders()
         self.watcher.start()
         if not folders():
             self.show_page(LIBRARY)
@@ -577,6 +609,14 @@ def _recent():
     db = open_db()
     try:
         return answers.recent(db)
+    finally:
+        db.close()
+
+
+def _folder_tree(roots):
+    db = open_db()
+    try:
+        return library.folder_tree(roots, library.folder_counts(db))
     finally:
         db.close()
 
