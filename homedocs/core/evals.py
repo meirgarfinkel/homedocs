@@ -34,7 +34,7 @@ BUILD = ROOT / "build" / "evals"
 STEPS = ("split", "search", "pick", "answer")
 # what decides how files are split into passages: a change to any of these means indexing again
 SPLIT_SETTINGS = ("PASSAGE_WORDS", "OVERLAP_WORDS", "MIN_PASSAGE_WORDS", "MIN_SECTION_WORDS", "MAX_PASSAGE_CHARS")
-SPLIT_CODE = ("parsers.py", "passages.py", "indexer.py", "store.py")
+SPLIT_CODE = ("parsers.py", "pdf_layout.py", "passages.py", "indexer.py", "store.py")
 
 
 def norm(text: str) -> str:

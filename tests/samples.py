@@ -5,8 +5,10 @@ import zipfile
 from pathlib import Path
 
 
-def make_pdf(path: Path, pages: list[str], bookmarks: list[tuple[str, int]] = ()) -> Path:
-    """A PDF with one page per string (each line of it a line of text), and bookmarks: (title, page from 0)."""
+def make_pdf(path: Path, pages: list, bookmarks: list[tuple[str, int]] = ()) -> Path:
+    """A PDF with one page per string (each line of it a line of text), and bookmarks: (title, page from 0).
+    A page can be a list of (x, y, text) instead: each text drawn there, in that order ((x, y, text, "up"):
+    turned to run up the page)."""
     objs = {}  # number -> bytes
     page_ids = [4 + 2 * i for i in range(len(pages))]
     outline_id = 4 + 2 * len(pages)
@@ -18,11 +20,19 @@ def make_pdf(path: Path, pages: list[str], bookmarks: list[tuple[str, int]] = ()
     objs[2] = f"<< /Type /Pages /Kids [{kids}] /Count {len(pages)} >>".encode()
     objs[3] = b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
     for pid, text in zip(page_ids, pages, strict=True):
-        lines = []
-        for line in text.split("\n"):
-            safe = line.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-            lines.append(f"({safe}) Tj T*")
-        stream = ("BT /F1 11 Tf 14 TL 50 780 Td " + " ".join(lines) + " ET").encode("latin-1")
+
+        def safe(line):
+            return line.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+        if isinstance(text, str):
+            lines = " ".join(f"({safe(line)}) Tj T*" for line in text.split("\n"))
+            stream = ("BT /F1 11 Tf 14 TL 50 780 Td " + lines + " ET").encode("latin-1")
+        else:
+            placed = " ".join(  # (x, y, text), or (x, y, text, "up"): turned to run up the page
+                f"BT /F1 11 Tf {'0 1 -1 0' if rest else '1 0 0 1'} {x} {y} Tm ({safe(t)}) Tj ET"
+                for x, y, t, *rest in text
+            )
+            stream = placed.encode("latin-1")
         objs[pid] = (
             b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> "
             + f"/Contents {pid + 1} 0 R >>".encode()

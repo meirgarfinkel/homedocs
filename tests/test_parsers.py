@@ -20,6 +20,43 @@ def test_a_pdf_gives_each_page_and_its_bookmarks(tmp_path):
     assert doc.headings[1][0] == doc.pages[1]
 
 
+def _pdf(tmp_path, *placed):
+    return read(make_pdf(tmp_path / "page.pdf", [list(placed)])).text
+
+
+def test_a_filled_in_forms_values_join_their_labels(tmp_path):
+    # tax software: the blank form top to bottom, then the values typed into it, from the top again
+    labels = [f"{n} Line {n} of the form, see the instructions . . . . . . . . . {n}" for n in range(1, 21)]
+    labels[8] = "9 Add lines 1 through 8. This is your total income . . . . . . . . . 9"
+    form = [(50, 750 - 35 * i, t) for i, t in enumerate(labels)]
+    values = [(470, 750 - 35 * 8, "48,300"), (470, 750 - 35 * 12, "1,240")]
+    text = _pdf(tmp_path, *form, *values)
+    assert "9 Add lines 1 through 8. This is your total income … 9 48,300\n" in text  # (dot leaders: one "…")
+    assert "13 Line 13 of the form, see the instructions … 13 1,240\n" in text
+
+
+def test_two_columns_are_read_one_after_the_other(tmp_path):
+    left = [(50, 700 - 14 * i, f"The left column, line {i}, goes on like this.") for i in range(12)]
+    right = [(320, 700 - 14 * i, f"The right column, line {i}, goes on like so.") for i in range(12)]
+    title = (50, 740, "A heading over both of the columns of this page")
+    text = _pdf(tmp_path, *right, *left, title)  # (drawn in any order)
+    lines = text.split("\n")
+    assert lines[0] == title[2]
+    assert lines[1:13] == [t for _, _, t in left] and lines[13:] == [t for _, _, t in right]
+
+
+def test_a_tables_rows_stay_together(tmp_path):
+    rows = [("Single", "$14,600"), ("Married filing jointly", "$29,200"), ("Head of household", "$21,900")]
+    names = [(50, 700 - 14 * i, name) for i, (name, _) in enumerate(rows)]
+    amounts = [(400, 700 - 14 * i, amount) for i, (_, amount) in enumerate(rows)]
+    assert _pdf(tmp_path, *names, *amounts).split("\n") == [f"{n} {a}" for n, a in rows]
+
+
+def test_sideways_text_comes_after_the_page(tmp_path):
+    text = _pdf(tmp_path, (20, 300, "Downloaded by a library", "up"), (50, 700, "The text of the page."))
+    assert text.split("\n") == ["The text of the page.", "Downloaded by a library"]
+
+
 def test_a_pdf_without_text_is_probably_a_scan(tmp_path):
     with pytest.raises(ReadError, match="scanned image"):
         read(make_pdf(tmp_path / "scan.pdf", ["", ""]))
