@@ -135,3 +135,41 @@ def test_a_question_asked_twice_is_listed_once(hd):
     assert [q for _, q in answers.recent(db)][0] == "late fee? "
     assert len(answers.recent(db)) == 2 and answers.recent(db)[0][0] == newest
     db.close()
+
+
+def test_the_app_does_the_arithmetic_the_model_writes_out():
+    fix = answers.fix_sums
+    # the model's result is replaced by the right one, in the model's own style
+    assert fix("The total is $300 + ($35 × 12) = $460.") == "The total is $300 + ($35 × 12) = $720."
+    assert fix("Two months is 2 × $1,850 = $3,600.") == "Two months is 2 × $1,850 = $3,700."
+    assert fix("That's $45 + $40 = $90 in all") == "That's $45 + $40 = $85 in all"
+    assert fix("12 x 2.5 = 31") == "12 x 2.5 = 30"
+    assert fix("$100 / 3 = $33") == "$100 / 3 = $33.33"
+    assert fix("$1,850 × 10% = $18,500") == "$1,850 × 10% = $185"  # (a percent of an amount)
+    assert fix("2 × 10% = 25%") == "2 × 10% = 20%"  # (percents counted as they are)
+    # a later sentence repeating the wrong result is corrected too
+    assert fix("So 300 + 420 = $700. You pay $700 in all.") == "So 300 + 420 = $720. You pay $720 in all."
+    # each sum uses the ones before it as corrected
+    assert fix("35 × 12 = 410, and 300 + 410 = 710.") == "35 × 12 = 420, and 300 + 420 = 720."
+    # right ones, and text that isn't a sum, are left alone
+    for same in (
+        "2 × $1,850 = $3,700.",
+        "Call 555-0175 = the office.",
+        "Filter 16x25x1.",
+        "Rent is $1,850.",
+        "It costs $300 + ($35 × 12) =",
+        "(1 + 2 = 3",
+        "pages 3-5",
+    ):
+        assert fix(same) == same
+
+
+def test_an_answer_shows_the_apps_arithmetic_as_it_streams_in():
+    class Sums(FakeLLM):
+        def generate(self, *args, **kw):
+            yield from ["You pay $300", " + 12", " × $35", " = $4", "60", " in all."]
+
+    seen = []
+    got = Answerer(lambda: Sums()).answer("Dog cost?", found(result(1, LATE, 3.0)), None, seen.append)
+    assert got.text == "You pay $300 + 12 × $35 = $720 in all."
+    assert "$460" not in " ".join(seen) and "$4 " not in " ".join(seen)
