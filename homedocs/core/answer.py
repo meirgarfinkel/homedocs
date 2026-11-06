@@ -14,6 +14,7 @@ The chat model sits behind generate(instructions, rest, max_new, should_stop) ->
 tests use a fake (tests/fakes.py).
 """
 
+import ast
 import json
 import re
 import threading
@@ -52,6 +53,7 @@ class Sentence:
     passage: int | None = None  # the backing passage: its place in Answer.passages (0 = the first), or None
     span: tuple[int, int] | None = None  # the backing sentence's place in that passage's text
     checked: bool = True  # False: nothing in it to check (like "Yes.")
+    strength: float = 0.0  # how well the backing sentence matches: its share of the words plus their cosine
 
     @property
     def backed(self) -> bool:
@@ -132,7 +134,74 @@ def prompt(question: str, passages: list[Result]) -> tuple[str, str]:
 def tidy(text: str) -> str:
     """The model's answer, cleaned: a "Not in your files." with anything after it is just that."""
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
-    return NOT_FOUND if is_not_found(text) else text
+    return NOT_FOUND if is_not_found(text) else fix_sums(text)
+
+
+# --- arithmetic -----------------------------------------------------------------------------------------
+# Small models find the right numbers but add them up wrong ("$300 + ($35 × 12) = $460"), so the app does the
+# arithmetic the model writes out, and puts its own result in place of the model's.
+
+_NUM = r"\$?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?%?"
+_OP = r"\s*[+×x*/÷]\s*|\s+[-−–]\s+"  # (a minus needs spaces: "2022-2025" and "555-0175" aren't sums)
+_SUM = re.compile(rf"(?<![\w$.,])(?P<expr>\(*\s*{_NUM}(?:\s*\)*(?:{_OP})\(*\s*{_NUM})+\s*\)*)\s*=\s*(?P<result>{_NUM})")
+_TO_PY = str.maketrans({"×": "*", "x": "*", "÷": "/", "−": "-", "–": "-"})
+
+
+def _value(expr: str, percent_of: bool) -> float | None:
+    """What the written-out sum comes to (None if it isn't one Python can work out safely). percent_of:
+    "10%" is a tenth (of an amount), not ten (percents added up)."""
+    expr = re.sub(r"(\d+(?:\.\d+)?)%", r"(\1/100)" if percent_of else r"\1", expr.replace("$", "").replace(",", ""))
+    expr = expr.translate(_TO_PY)
+    while expr.count("(") > expr.count(")") and expr.lstrip().startswith("("):  # ("(1 + 2 = 3")
+        expr = expr.lstrip()[1:]
+    while expr.count(")") > expr.count("(") and expr.rstrip().endswith(")"):  # ("(that's 1 + 2) = 3")
+        expr = expr.rstrip()[:-1]
+    try:
+        tree = ast.parse(expr, mode="eval")
+    except SyntaxError:
+        return None
+    allowed = (ast.Expression, ast.BinOp, ast.UnaryOp, ast.Constant, ast.Add, ast.Sub, ast.Mult, ast.Div, ast.USub)
+    if not all(isinstance(n, allowed) for n in ast.walk(tree)):
+        return None
+    try:
+        return float(eval(compile(tree, "sum", "eval"), {"__builtins__": {}}))  # (numbers and + - × / only)
+    except ZeroDivisionError:
+        return None
+
+
+def _written(value: float, like: str, commas: bool) -> str:
+    """value written the way the model wrote its result (like): "$" and "%" kept, cents for money."""
+    money, pct = like.startswith("$"), like.endswith("%")
+    rounded = round(value, 2)
+    if rounded == int(rounded):
+        digits = f"{int(rounded):,}" if commas else str(int(rounded))
+    elif money:
+        digits = f"{rounded:,.2f}" if commas else f"{rounded:.2f}"
+    else:
+        digits = (f"{rounded:,.2f}" if commas else f"{rounded:.2f}").rstrip("0")
+    sign, digits = ("-", digits[1:]) if digits.startswith("-") else ("", digits)
+    return f"{sign}{'$' if money else ''}{digits}{'%' if pct else ''}"
+
+
+def fix_sums(text: str) -> str:
+    """text with each written-out sum's result ("... = $460") replaced by what it comes to, in the same style;
+    a later mention of the same wrong result is corrected too. Each sum sees the ones before it corrected."""
+    at = 0
+    while m := _SUM.search(text, at):
+        old = m["result"]
+        value = _value(m["expr"], percent_of=not old.endswith("%"))
+        if value is None:
+            at = m.end()
+            continue
+        new = _written(value, old, commas="," in m[0] or abs(value) >= 10_000)
+        if new == old:
+            at = m.end()
+            continue
+        head, tail = text[: m.start("result")], text[m.end("result") :]
+        tail = re.sub(rf"(?<![\w$.,]){re.escape(old)}(?![\d%]|[.,]\d)", new, tail)  # (new has no backslashes)
+        text = head + new + tail
+        at = len(head) + len(new)
+    return text
 
 
 # --- sources --------------------------------------------------------------------------------------------
@@ -204,7 +273,7 @@ def find_sources(text: str, passages: list[Result], embedder=None, question: str
                 if best_key is None or key > best_key:
                     best, best_key = (i, s, e), key
         if best:
-            claim.passage, claim.span = best[0], (best[1], best[2])
+            claim.passage, claim.span, claim.strength = best[0], (best[1], best[2]), best_key
     return claims
 
 
@@ -243,7 +312,7 @@ class Answerer:
         try:
             for piece in self._llm.generate(*prompt(question, passages), ANSWER_TOKENS, lambda: self._stopped):
                 parts.append(piece)
-                on_text("".join(parts))
+                on_text(fix_sums("".join(parts)))
         except Stopped:
             return None
         if self._stopped:

@@ -42,6 +42,9 @@ def test_a_run_scores_each_step_and_blames_the_first_one_lost(hd, tmp_path, monk
             assert all(o.steps[s] for s in evals.STEPS[: evals.STEPS.index(o.lost_at)])
     text = evals.report(outcomes, answered=True)
     assert "Right:" in text and "First word:" in text and "Lost at:" in text
+    # each answer keeps what a trust rating could go by, and the report says how well each tells right from wrong
+    assert all(set(o.signals) == set(evals.SIGNALS) for o in outcomes if o.answer)
+    assert evals.trust_report(outcomes).startswith("Trust signals")
     # the index is kept for the next run
     assert (tmp_path / "data" / "indexed").exists()
 
@@ -75,3 +78,20 @@ def test_a_setting_changes_everywhere_it_was_imported():
     finally:
         evals.set_setting("ANSWER_CHARS", old)
     assert old == answer.ANSWER_CHARS
+
+
+def test_a_number_the_passages_dont_have_is_a_stray():
+    from homedocs.core.answer import Answer, Sentence
+    from homedocs.core.search import Found, Result
+
+    passage = Result(
+        1, "/d/lease.md", "lease.md", None, None, None, "Pet rent is $35 a month; the fee is $300.", 0, 2.0
+    )
+
+    def signals(text):
+        a = Answer("Dog cost for 12 months?", text, [passage], [Sentence(0, len(text), 0, (0, 5), True, 1.2)])
+        return evals.trust_signals(a.question, a, Found([passage], 0.1, True))
+
+    assert signals("$300 + 12 × $35 = $720.")["no_stray_numbers"] == 0  # (a sum's result, the question's 12)
+    assert signals("It costs $460 a year.")["no_stray_numbers"] == -1
+    assert signals("It's $1,850.00 or 3.50.")["no_stray_numbers"] == -2

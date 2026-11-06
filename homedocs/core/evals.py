@@ -179,6 +179,7 @@ class Outcome:
     sentences: int = 0  # the answer's sentences with something to check
     sourced: int = 0  # of those, the ones a passage backs
     wrong_file: int = 0  # backed by a passage from a file the question doesn't need
+    signals: dict = field(default_factory=dict)  # what a trust rating could go by (see trust_signals)
 
     @property
     def right(self) -> bool:
@@ -249,6 +250,7 @@ def ask(q: Question, searcher, answerer, embedder, passages: Passages) -> Outcom
         out.wrong_file = sum(
             1 for s in checked if s.backed and q.answerable and a.passages[s.passage].name not in needed_files
         )
+        out.signals = trust_signals(q.question, a, found)
     if q.answerable:
         out.lost_at = next((s for s in STEPS if s in out.steps and not out.steps[s]), None)
     else:
@@ -257,6 +259,68 @@ def ask(q: Question, searcher, answerer, embedder, passages: Passages) -> Outcom
 
 
 # --- the report -----------------------------------------------------------------------------------------
+
+
+# --- trust signals ---------------------------------------------------------------------------------------
+# What a rating of how far to trust an answer could go by, all known once the answer is written (no more
+# model time). Higher is more trustworthy for each. The report shows how well each one tells right answers
+# from wrong ones, before any of them is shown in the app.
+
+SIGNALS = {
+    "best_score": "the re-ranker's best score among the results",
+    "cited_score": "the lowest re-ranker score of a passage backing a sentence",
+    "weakest_match": "the weakest sentence's match with its source (0: a sentence with none)",
+    "backed_share": "the share of the sentences with a source",
+    "no_stray_numbers": "minus the numbers in the answer that aren't in the passages, the question or a sum",
+}
+_NUMBER = re.compile(r"\d+(?:,\d{3})*(?:\.\d+)?")
+
+
+def _numbers(text: str) -> set[str]:
+    out = set()
+    for n in _NUMBER.findall(text):
+        n = n.replace(",", "")
+        out.add(n.rstrip("0").rstrip(".") if "." in n else n)
+    return out
+
+
+def trust_signals(question: str, a, found) -> dict:
+    from .answer import _SUM
+
+    checked = [s for s in a.sentences if s.checked]
+    cited = [a.passages[s.passage].score for s in checked if s.backed]
+    sums = set().union(*(_numbers(m["result"]) for m in _SUM.finditer(a.text)))
+    known = _numbers(question) | sums | set().union(*(_numbers(r.text) for r in a.passages))
+    scores = [r.score for r in found.results] if found.by_meaning else []
+    return {
+        "best_score": max(scores, default=0.0),
+        "cited_score": min(cited, default=-20.0),
+        "weakest_match": min((s.strength for s in checked), default=0.0),
+        "backed_share": sum(s.backed for s in checked) / len(checked) if checked else 0.0,
+        "no_stray_numbers": -len(_numbers(a.text) - known),
+    }
+
+
+def trust_report(outcomes: list[Outcome]) -> str:
+    """How well each signal tells right answers from wrong ones, over the questions the model answered
+    (not "Not in your files."): the chance a right answer scores above a wrong one (0.5 is a coin toss, 1.0 is
+    perfect), and each signal's median for the two."""
+    given = [o for o in outcomes if o.signals and o.answer and not _not_found(o.answer)]
+    right, wrong = [o for o in given if o.right], [o for o in given if not o.right]
+    lines = [f"Trust signals, over {len(given)} answers given ({len(right)} right, {len(wrong)} wrong):"]
+    if not right or not wrong:
+        return lines[0] + " needs both right and wrong answers."
+    lines.append(f"{'signal':<18}{'separates':>10}{'right':>9}{'wrong':>9}")
+    for name in SIGNALS:
+        r, w = [o.signals[name] for o in right], [o.signals[name] for o in wrong]
+        auc = sum((x > y) + 0.5 * (x == y) for x in r for y in w) / (len(r) * len(w))
+        lines.append(f"{name:<18}{auc:>10.2f}{statistics.median(r):>9.2f}{statistics.median(w):>9.2f}")
+    strays = Counter((o.right, o.signals["no_stray_numbers"] < 0) for o in given)
+    lines.append(
+        f"With a stray number: {strays[(True, True)]} right, {strays[(False, True)]} wrong; "
+        f"without: {strays[(True, False)]} right, {strays[(False, False)]} wrong"
+    )
+    return "\n".join(lines)
 
 
 def report(outcomes: list[Outcome], answered: bool) -> str:
@@ -396,6 +460,9 @@ def main(argv=None):
     print()
     print(report(outcomes, answered=not args.search))
     print()
+    if not args.search:
+        print(trust_report(outcomes))
+        print()
     print(failures(outcomes))
     stamp = time.strftime("%Y%m%d-%H%M%S")
     saved = BUILD / f"results-{stamp}.json"
@@ -412,6 +479,7 @@ def main(argv=None):
                         "steps": o.steps,
                         "answer": o.answer,
                         "first_word": o.first_word,
+                        "signals": o.signals,
                     }
                     for o in outcomes
                 ],

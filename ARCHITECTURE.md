@@ -269,6 +269,11 @@ with "Open file" and "Show in folder".
    `ui/workers.py` has a streaming job for this: it sends each batch of tokens to the UI thread through the
    same signal relay and checks a cancel flag between tokens (and between batches while reading the prompt),
    so a new question stops the old answer at once.
+   **Arithmetic** is the app's, not the model's: small models find the right numbers but add them up wrong
+   ("$300 + ($35 × 12) = $460"). Each sum the answer writes out (`... = result`) is worked out by
+   `answer.fix_sums` and its result, and any later mention of the wrong one, replaced in the model's style
+   ("$", commas, cents). It runs on the text so far as it streams in, so the wrong figure never shows. A
+   minus needs spaces ("2022-2025" isn't a sum), and only numbers, + − × ÷ and brackets are worked out.
 4. **Find sources:** once finished, the answer is split into sentences (a line wrapped by hand isn't a sentence
    end). For each, every sentence of the passages read is scored two ways: the share of its words (stemmed,
    common words and the question's own words left out, so what it adds, like "45 minutes", is what's checked)
@@ -323,6 +328,14 @@ from the wrong file, and the median and slowest time to the first word. `--searc
 no chat model), to try search settings quickly; `--held-back` runs the held-back questions instead of the
 tuning ones; `--only TYPE` runs one type; `--set NAME=VALUE` changes a setting of `config.py` for the run (in
 every module that imported it). Each run's answers are saved to `build/evals/results-*.json`.
+
+**Trust signals:** each answer also keeps what a rating of how far to trust it could go by, all known once
+it's written (`evals.SIGNALS`: the re-ranker's scores, how well each sentence matches its source, numbers that
+aren't in the passages), and the report shows how well each tells right answers from wrong ones. Measured on
+the tuning set (0.11, 78 right and 14 wrong answers), none does better than a coin toss (0.47-0.53); on the
+held-back set (29 right, 11 wrong) the best two reach 0.66-0.67. Wrong answers come from real passages, with
+real numbers from the wrong row or file, and too few are wrong to trust the held-back figures, so nothing
+is shown in the app yet.
 
 **Tuning** changes one setting at a time (`core/config.py` holds them all: passage size and overlap,
 candidates, how keyword and meaning results are combined, passages the model reads and their length, the "Not in
