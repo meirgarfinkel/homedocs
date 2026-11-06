@@ -36,8 +36,9 @@ INSTRUCTIONS = (
     "You answer questions using only the numbered passages below, which come from the user's own files. "
     "Answer in one to three short sentences. Use only facts stated in the passages. "
     "A passage that settles the question answers it, even in other words: for a yes-or-no question, a rule "
-    "that allows or forbids it is the answer. If the question needs arithmetic, work it out from the passages' "
-    "numbers and give the result. Some passages are about other things: ignore them. "
+    "that allows or forbids it is the answer; a form's line or a table's row (a label and its amount) answers "
+    "a question about what that label names, however the question words it. If the question needs arithmetic, "
+    "work it out from the passages' numbers and give the result. Some passages are about other things: ignore them. "
     f'Only if no passage settles the question, reply exactly: "{NOT_FOUND}"'
 )
 
@@ -96,7 +97,8 @@ def should_ask(found: Found) -> bool:
     if not found.results:
         return False
     if found.by_meaning:  # (the scores are the re-ranker's only then)
-        return found.results[0].score >= NOT_FOUND_SCORE
+        # (the best of them: blending with the search's order can put a lower one first)
+        return max(r.score for r in found.results) >= NOT_FOUND_SCORE
     return True
 
 

@@ -29,6 +29,7 @@ RRF_K = 60
 RERANK_CANDIDATES = 20
 RERANK_MAX_TOKENS = 256
 SHOW_RESULTS = 8
+RERANK_BLEND = 1.0  # how much of the search's own order is kept against the re-ranker's (0: none)
 EMBED_BATCH = 8  # passages embedded at a time while indexing (stopping waits for one batch at most)
 EMBED_FETCH = 512  # passages fetched from the database at a time to embed (finding them takes ~0.3 s in a big
 # library: done for every 16 passages, it took as long as embedding them)
