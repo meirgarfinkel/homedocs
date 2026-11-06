@@ -1,10 +1,12 @@
 """Answering a question from the passages search found, and finding what backs each sentence of the answer.
 
-1. Ask the model at all? Not when nothing was found, or when even the best passage's re-ranker score is below
-   NOT_FOUND_SCORE: then the answer is "Not in your files." at once.
+1. Ask the model at all? Not when nothing was found: then the answer is "Not in your files." at once.
 2. The prompt: the best passages that fit in ANSWER_CHARS (pick()), numbered, with their file and place. The
-   model is told to answer from them alone in a few sentences, or say "Not in your files." It isn't asked to
-   cite: in the test (REQUIREMENTS.md), small models cited the wrong passage or ignored the instruction.
+   model is told to answer from them alone in a few sentences. When they don't hold the answer, it says "Not
+   in your files." and then what they do say, so the user sees what it made of them, marked as not an answer.
+   (An answer it follows with "Not in your files." and doubts is kept, and the doubts dropped: in the eval they
+   were wrong far more often than the answer.) It isn't asked to cite: in the test (REQUIREMENTS.md), small
+   models cited the wrong passage or ignored the instruction.
 3. The answer streams in, a piece at a time.
 4. Sources: each sentence of the answer is matched against every sentence of those passages, by the share of
    its words found there and by meaning (the embedder). The best match, if close enough, backs it; a sentence
@@ -25,7 +27,6 @@ from . import store
 from .config import (
     ANSWER_CHARS,
     ANSWER_TOKENS,
-    NOT_FOUND_SCORE,
     SUPPORT_MEANING,
     SUPPORT_WORDS,
 )
@@ -40,7 +41,8 @@ INSTRUCTIONS = (
     "You answer questions using only the numbered passages below, which come from the user's own files. "
     "Answer in one to three short sentences, using only facts stated in the passages. "
     "If the question needs arithmetic, work it out from the passages' numbers and give the result. "
-    f'If the passages don\'t answer the question, reply exactly: "{NOT_FOUND}"'
+    f'If the passages don\'t answer the question, reply "{NOT_FOUND}" and then say in one sentence what they '
+    "do say about it, if anything."
 )
 
 
@@ -71,7 +73,14 @@ class Answer:
 
     @property
     def not_found(self) -> bool:
+        """The passages don't answer the question directly (the text starts with "Not in your files.")."""
         return is_not_found(self.text)
+
+    @property
+    def body(self) -> str:
+        """What the model wrote, without the "Not in your files." it starts with when the files don't answer
+        directly (empty when that's all it wrote)."""
+        return self.text[len(NOT_FOUND) :].strip() if self.text.startswith(NOT_FOUND) else self.text
 
 
 # the model saying "Not in your files." in its own words, about the passages (or files, documents) themselves:
@@ -87,8 +96,8 @@ _NO_ANSWER = re.compile(
 
 
 def is_not_found(text: str) -> bool:
-    """The answer is "Not in your files.": it starts with that, ends with it after a hedge, or its first
-    sentence says the passages don't hold the answer (a partial answer followed by one is kept)."""
+    """The passages don't answer the question directly: the text starts with "Not in your files.", ends with it,
+    or its first sentence says the passages don't hold the answer."""
     text = text.strip()
     key = NOT_FOUND.lower().rstrip(".")
     if text.lower().startswith(key) or text.lower().rstrip(". ").endswith(key):
@@ -98,13 +107,10 @@ def is_not_found(text: str) -> bool:
 
 
 def should_ask(found: Found) -> bool:
-    """Whether the model could find an answer in these passages (else it's "Not in your files." at once)."""
-    if not found.results:
-        return False
-    if found.by_meaning:  # (the scores are the re-ranker's only then)
-        # (the best of them: blending with the search's order can put a lower one first)
-        return max(r.score for r in found.results) >= NOT_FOUND_SCORE
-    return True
+    """Whether to ask the model (else it's "Not in your files." at once): whenever anything was found, even when
+    the re-ranker scores it low, so the user sees what the model made of it (low scores aren't reliable: a
+    found answer can score below a passage that's beside the point)."""
+    return bool(found.results)
 
 
 def pick(results: list[Result]) -> list[Result]:
@@ -135,9 +141,23 @@ def prompt(question: str, passages: list[Result]) -> tuple[str, str]:
 
 
 def tidy(text: str) -> str:
-    """The model's answer, cleaned: a "Not in your files." with anything after it is just that."""
-    text = re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
-    return NOT_FOUND if is_not_found(text) else fix_sums(text)
+    """The model's answer, cleaned. When the passages don't answer it directly, it starts with "Not in your
+    files." and keeps what the model wrote about them; one that says so in its own words ("The provided passages
+    do not state...") gets it put in front. An answer followed by "Not in your files." and doubts about it is
+    kept without them."""
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.S)
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text).strip()  # (Markdown bold: shown as plain text)
+    at = text.find(NOT_FOUND)
+    if at > 0:  # an answer, then doubts about it: in the eval these were wrong far more often than the answer
+        text = text[:at].strip()
+    if not is_not_found(text):
+        return fix_sums(text)
+    key = NOT_FOUND.lower().rstrip(".")
+    body = text
+    if body.lower().startswith(key):
+        body = body[len(key) :].lstrip(".:;,!— -")
+    body = fix_sums(body.strip())
+    return f"{NOT_FOUND} {body[:1].upper()}{body[1:]}" if body.strip(". ") else NOT_FOUND
 
 
 # --- arithmetic -----------------------------------------------------------------------------------------
@@ -252,9 +272,9 @@ def find_sources(text: str, passages: list[Result], embedder=None, question: str
 
     The question's own words are left out of each sentence's (when anything is left): repeating the question
     needs no source, and what the sentence adds, like "45 minutes", is what has to be in the passage."""
-    if is_not_found(text):
-        return []
     claims = [Sentence(s, e) for s, e in sentences(text)]
+    if claims and text.startswith(NOT_FOUND):  # (the marker itself has nothing to check)
+        claims[0].checked = False
     cands = [(i, s, e) for i, r in enumerate(passages) for s, e in sentences(r.text) if e - s > 3]
     asked = words(question)
     claim_words = [(w - asked) or w for w in (words(text[c.start : c.end]) for c in claims)]
@@ -264,7 +284,7 @@ def find_sources(text: str, passages: list[Result], embedder=None, question: str
         vecs = embedder.embed([text[c.start : c.end] for c in claims] + [passages[i].text[s:e] for i, s, e in cands])
         meaning = vecs[len(claims) :] @ vecs[: len(claims)].T  # [candidate, claim]
     for k, (claim, cw) in enumerate(zip(claims, claim_words, strict=True)):
-        if not cw:
+        if not claim.checked or not cw:
             claim.checked = False
             continue
         best, best_key = None, None
@@ -312,12 +332,18 @@ class Answerer:
             if self._llm is None:
                 self._llm = self._load()
         parts: list[str] = []
+        pieces = self._llm.generate(*prompt(question, passages), ANSWER_TOKENS, lambda: self._stopped)
         try:
-            for piece in self._llm.generate(*prompt(question, passages), ANSWER_TOKENS, lambda: self._stopped):
+            for piece in pieces:
                 parts.append(piece)
-                on_text(fix_sums("".join(parts)))
+                so_far = "".join(parts)
+                if so_far.find(NOT_FOUND) > 0:  # an answer, then doubts about it: tidy() drops them, so stop here
+                    break
+                on_text(fix_sums(so_far))
         except Stopped:
             return None
+        finally:
+            pieces.close()
         if self._stopped:
             return None
         text = tidy("".join(parts))

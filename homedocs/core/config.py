@@ -36,14 +36,11 @@ EMBED_FETCH = 512  # passages fetched from the database at a time to embed (find
 
 # Answers: the chat model reads the best passages that fit in ANSWER_CHARS characters, and writes at most
 # ANSWER_TOKENS. ANSWER_CHARS is the speed budget: 1,800 characters is about 550 tokens, which the model reads
-# in about 4.5 s on a 2021 laptop (~120 tokens/s once warm), so the first word comes within 5 s. It isn't asked
-# at all when the best passage's re-ranker score is below NOT_FOUND_SCORE: answerable questions scored as low as -5.8
-# in the test, unanswerable ones -5.3 to -10.6, so only clearly hopeless ones are cut. A sentence of the answer
-# counts as backed by a passage sentence holding SUPPORT_WORDS of its words, or this close in meaning
+# in about 4.5 s on a 2021 laptop (~120 tokens/s once warm), so the first word comes within 5 s. A sentence of
+# the answer counts as backed by a passage sentence holding SUPPORT_WORDS of its words, or this close in meaning
 # (SUPPORT_MEANING, the cosine of their vectors). (Measured starting values: see REQUIREMENTS.md.)
 ANSWER_CHARS = 1800
 ANSWER_TOKENS = 300
-NOT_FOUND_SCORE = -7.0
 SUPPORT_WORDS = 0.6
 SUPPORT_MEANING = 0.80
 N_CTX = 3072  # the chat model's context: instructions, the passages, the question and the answer

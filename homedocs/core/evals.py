@@ -206,14 +206,14 @@ def _quotes(need: dict) -> list[str]:
 
 
 def right_answer(q: Question, text: str) -> bool:
-    from .answer import is_not_found
+    """Right: says "Not in your files." when the files don't hold the answer; states every fact when they do
+    (even after "Not in your files.", which then only says the files don't answer it directly)."""
+    from .answer import NOT_FOUND, is_not_found
 
     if not q.answerable:
         return is_not_found(text)
-    if is_not_found(text):
-        return False
-    said = norm(text)
-    return all(re.search(f, said) for f in q.facts)
+    body = text[len(NOT_FOUND) :] if text.startswith(NOT_FOUND) else text
+    return bool(body.strip()) and all(re.search(f, norm(body)) for f in q.facts)
 
 
 def ask(q: Question, searcher, answerer, embedder, passages: Passages) -> Outcome:
@@ -348,8 +348,12 @@ def report(outcomes: list[Outcome], answered: bool) -> str:
     if answered:
         nf = [o for o in outcomes if not o.q.answerable]
         lines.append(f"'Not in your files' when it should: {sum(o.right for o in nf)}/{len(nf)}")
-        wrongly = sum(1 for o in outcomes if o.q.answerable and o.answer and _not_found(o.answer))
+        wrongly = sum(1 for o in outcomes if o.q.answerable and o.answer and _not_found(o.answer) and not o.right)
         lines.append(f"'Not in your files' when the answer was there: {wrongly}")
+        labelled_right = sum(1 for o in outcomes if o.q.answerable and o.right and _not_found(o.answer))
+        lines.append(f"Right, though marked 'Not in your files': {labelled_right}")
+        sure = sum(1 for o in outcomes if o.answer and not o.right and not _not_found(o.answer))
+        lines.append(f"Wrong, and not marked (wrong answers given as answers): {sure}")
         sentences = sum(o.sentences for o in outcomes)
         lines.append(f"Sentences with a source: {sum(o.sourced for o in outcomes)}/{sentences}")
         lines.append(f"Sentences sourced from a file the question doesn't need: {sum(o.wrong_file for o in outcomes)}")

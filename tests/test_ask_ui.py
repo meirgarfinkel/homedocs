@@ -212,3 +212,18 @@ def test_without_llama_cpp_there_are_passages_and_no_answer(hd, app, folder, mon
         assert not w.ask_page.answer.isVisible() and not w.ask_page.note.isVisible()
     finally:
         w.close()
+
+
+def test_what_the_model_made_of_passages_that_dont_answer_is_shown_under_a_label(app):
+    from homedocs.core.answer import NOT_FOUND, Answer, find_sources
+    from homedocs.core.search import Result
+    from homedocs.ui.views.ask import UNSURE, answer_for_copying, answer_html
+
+    lease = Result(1, "/docs/lease.md", "lease.md", None, None, "Rent", "A late fee of $75 is charged.", False, 0.0)
+    text = f"{NOT_FOUND} A late fee of $75 is charged."
+    a = Answer("Late fee on the 9th?", text, [lease], find_sources(text, [lease]))
+    shown = answer_html(a)
+    assert UNSURE in shown and NOT_FOUND not in shown and 'href="source:1"' in shown
+    assert answer_for_copying(a).startswith(f"{UNSURE}\nA late fee of $75 is charged. [1]")
+    plain = Answer("Passport?", NOT_FOUND, [], find_sources(NOT_FOUND, []))
+    assert NOT_FOUND in answer_html(plain) and UNSURE not in answer_html(plain)

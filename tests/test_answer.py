@@ -7,7 +7,7 @@ from fakes import FakeEmbedder, FakeLLM
 
 from homedocs.core import answer as answers
 from homedocs.core.answer import NOT_FOUND, Answerer, pick, prompt, should_ask, tidy
-from homedocs.core.config import ANSWER_CHARS, NOT_FOUND_SCORE
+from homedocs.core.config import ANSWER_CHARS
 from homedocs.core.search import Found, Result
 
 
@@ -23,11 +23,10 @@ def found(*results, by_meaning=True):
 LATE = "Rent paid after the 5th is late, and a late fee of $75 is charged. Rent is $1,850."
 
 
-def test_the_model_is_skipped_when_nothing_could_answer():
+def test_the_model_is_asked_whenever_anything_was_found():
     assert not should_ask(found())
-    assert not should_ask(found(result(1, LATE, NOT_FOUND_SCORE - 0.1)))
-    assert should_ask(found(result(1, LATE, NOT_FOUND_SCORE + 0.1)))
-    assert should_ask(found(result(1, LATE, -50), by_meaning=False))  # (keyword only: no re-ranker scores)
+    assert should_ask(found(result(1, LATE, -50)))  # (even a low score: the user sees what it made of it)
+    assert should_ask(found(result(1, LATE, -50), by_meaning=False))
 
 
 def test_the_prompt_numbers_the_best_passages_and_keeps_the_instructions_apart():
@@ -57,15 +56,27 @@ def test_a_very_long_passage_is_still_read_but_cut():
 
 def test_tidy():
     assert tidy("  The fee is $75.  ") == "The fee is $75."
-    assert tidy("Not in your files. The passages talk about rent.") == NOT_FOUND
-    assert tidy("<think>hmm</think>The fee is $75.") == "The fee is $75."
-    # the same in the model's own words
-    assert tidy("The car's license plate number is not provided in the passages.") == NOT_FOUND
-    assert tidy("The passages don't mention a license plate.") == NOT_FOUND
-    assert tidy("Repairs are not specified. Not in your files.") == NOT_FOUND
-    assert tidy("The provided passages do not state how much you paid for it.") == NOT_FOUND
-    assert tidy("Open enrollment is not mentioned in the provided files.") == NOT_FOUND
-    assert tidy("The documents don't contain your AGI.") == NOT_FOUND
+    assert tidy("<think>hmm</think>The fee is **$75**.") == "The fee is $75."
+    assert tidy("Not in your files.") == tidy("**Not in your files.**") == NOT_FOUND
+    # what the model made of passages that don't answer directly is kept, after "Not in your files."
+    rent = "Not in your files. The passages talk about rent."
+    assert tidy(rent) == rent
+    assert tidy("Not in your files: the passages cover rent.") == "Not in your files. The passages cover rent."
+    # an answer followed by doubts about it is kept without them
+    assert tidy("Guests may stay 14 nights. Not in your files.") == "Guests may stay 14 nights."
+    doubted = "Your space is 14.\n\nNot in your files. The passages don't give the space's number."
+    assert tidy(doubted) == "Your space is 14."
+    # the model saying so in its own words is marked the same way, its words kept
+    for own in (
+        "The car's license plate number is not provided in the passages.",
+        "The passages don't mention a license plate.",
+        "The provided passages do not state how much you paid for it.",
+        "Open enrollment is not mentioned in the provided files.",
+        "The documents don't contain your AGI.",
+    ):
+        assert tidy(own) == f"{NOT_FOUND} {own}"
+    assert answers.Answer("q", f"{NOT_FOUND} They cover rent.", []).body == "They cover rent."
+    assert answers.Answer("q", NOT_FOUND, []).body == "" and answers.Answer("q", "Rent.", []).body == "Rent."
     partial = "Rent is $1,850. The due date is not mentioned in the passages."
     assert tidy(partial) == partial
     # answers that say what isn't covered or allowed are answers
@@ -88,12 +99,39 @@ def test_an_answer_streams_in_and_its_sentence_is_backed():
     assert len(llm.prompts) == 1 and "[2] file2.md" in llm.prompts[0][1]
 
 
-def test_not_in_your_files_without_loading_the_model():
+def test_not_in_your_files_without_loading_the_model_when_nothing_was_found():
     loads = []
     a = Answerer(lambda: loads.append(1) or FakeLLM())
-    got = a.answer("Passport?", found(result(1, LATE, NOT_FOUND_SCORE - 3)), None)
+    got = a.answer("Passport?", found(), None)
     assert got.text == NOT_FOUND and not got.asked_model and got.not_found
     assert loads == [] and not a.loaded
+
+
+def test_what_the_model_made_of_passages_that_dont_answer_is_kept_and_sourced():
+    class Unsure(FakeLLM):
+        def generate(self, *args, **kw):
+            yield from ["Not in your files.", " Rent paid after the 5th is late", ", and a late fee of $75 is charged."]
+
+    got = Answerer(lambda: Unsure()).answer("Passport?", found(result(1, LATE, -9.0)), None)
+    assert got.not_found and got.text == f"{NOT_FOUND} {LATE.split(' Rent is')[0]}"
+    marker, said = got.sentences
+    assert not marker.checked and not marker.backed  # ("Not in your files." itself has nothing to check)
+    assert said.backed and said.passage == 0
+
+
+def test_the_model_stops_once_it_starts_doubting_its_answer():
+    read = []
+
+    class Doubting(FakeLLM):
+        def generate(self, *args, **kw):
+            for piece in ["The late fee is $75.", " Not in your files.", " The passages", " don't say."]:
+                read.append(piece)
+                yield piece
+
+    seen = []
+    got = Answerer(lambda: Doubting()).answer("Late fee?", found(result(1, LATE, 3.0)), None, seen.append)
+    assert got.text == "The late fee is $75." and not got.not_found
+    assert len(read) == 2 and all(NOT_FOUND not in s for s in seen)
 
 
 def test_stopping_ends_the_answer_with_nothing():
