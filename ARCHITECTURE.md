@@ -256,13 +256,17 @@ with "Open file" and "Show in folder".
 
 `core/answer.py`, after the search above:
 
-1. **Ask the model at all?** If nothing was found, or the best passage's re-ranker score is below
-   `NOT_FOUND_SCORE` (−7), the answer is "Not in your files." at once. Above that, scores of answerable and
-   unanswerable questions overlap, so the model decides (see REQUIREMENTS.md, how the chat model was chosen).
+1. **Ask the model at all?** Only if nothing was found is the answer "Not in your files." at once. Otherwise
+   the model reads the best passages even when they score low: re-ranker scores of answerable and unanswerable
+   questions overlap, and the user sees what the model made of them.
 2. **Prompt:** the best passages that fit in `ANSWER_CHARS` (1,800 characters, about 550 tokens: what the
    model reads within the 5 s to the first word), in rank order: one that doesn't fit is passed over, and a
    shorter one after it may still fit. They're numbered, each with its file name and page or headings. The instructions: answer in one to three short sentences, only from the passages, and if they
-   don't hold the answer reply exactly "Not in your files." The model isn't asked to cite: small models do it
+   don't hold the answer reply "Not in your files." and then say in one sentence what they do say. The page
+   shows that as "Not answered directly by your files. What they say:" over the model's sentence, with its
+   sources. A model that answers and then adds "Not in your files." is doubting its own answer: in the eval
+   the doubts were wrong far more often than the answer, so the answer is kept, the doubts dropped, and the
+   model stopped there. The model isn't asked to cite: small models do it
    badly. The prompt is written out in Qwen's chat format, with thinking turned off.
 3. **Stream:** `llm.py` reads the prompt and yields tokens one at a time. The instructions are the same for
    every question, so they're read once when the model loads and kept; each question only reads its passages.

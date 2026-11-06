@@ -89,5 +89,6 @@ def test_a_sentence_with_nothing_to_check_is_left_alone():
     assert got[1].backed
 
 
-def test_not_in_your_files_has_no_sentences():
-    assert find_sources(NOT_FOUND, [passage(LEASE)]) == []
+def test_not_in_your_files_itself_is_not_checked():
+    got = find_sources(NOT_FOUND, [passage(LEASE)])
+    assert len(got) == 1 and not got[0].checked and not got[0].backed

@@ -11,7 +11,7 @@ Agreed 2026-11-04. **v1** = first release, **v2** = next release, **Later** = no
 2. **Offline.** No network access except downloading the models once (each pinned by sha256) and checking
    GitHub for a new release. No telemetry. Questions, answers and feedback never leave the computer.
 3. **Answers only from your files.** The answer is built only from passages found in the user's folders. When
-   they don't contain the answer, it says so instead of guessing.
+   they don't contain the answer, it says so instead of guessing, and says what they do say.
 4. **Every sentence is checked against its source.** The app, not the model, finds the passage sentence that
    supports each sentence of the answer and links to it. A sentence nothing supports is marked as not found in
    the files, never passed off as sourced.
@@ -71,7 +71,7 @@ Agreed 2026-11-04. **v1** = first release, **v2** = next release, **Later** = no
 | One question, one answer. A small local model answers from the top passages and streams in word by word | v1 |
 | Each sentence of the answer gets a link ([1], [2]) to the passage that supports it. The app finds it (by the words they share and by meaning); the model isn't asked to cite | v1 |
 | A sentence no passage supports is marked "not found in your files" | v1 |
-| "Not in your files" when the passages don't hold the answer: at once, without the model, when even the best passage scores clearly low; otherwise the model says so | v1 |
+| "Not in your files" when the passages don't hold the answer, followed by what they do say (the model's reading of them, marked as not an answer); at once, without the model, only when nothing was found | v1 |
 | Asking a new question stops the answer in progress | v1 |
 | Clicking a link opens the passage in the Info panel with the supporting sentence highlighted, the file name and page, and "Open file" (system app) | v1 |
 | Recent questions in the sidebar, reopened without asking the model again | v1 |
@@ -231,6 +231,28 @@ On the 45 held-back questions, Qwen3.5-2B (plain) got 32 right and 3 wrong, Qwen
   memory (ARCHITECTURE.md, "Stream").
 - **Embedder:** nomic-embed-text-v1.5 (8-bit) found the needed passages for 88 of 98 answerable questions
   against arctic-embed-xs's 89, and indexed ~9 times slower. Not taken.
+
+### Saying what the passages do say (2026-11-06)
+
+Before 0.13, a reply of "Not in your files." showed nothing else, and the app threw away an answer the model
+followed with "Not in your files." Now the model is always asked when anything was found, says what the
+passages do say when they don't hold the answer, and an answer it doubts at the end is kept. Three wordings
+of the last instruction, on the 104 tuning questions (wrong = an answer given as an answer, and wrong):
+
+| Instruction | Right | Wrong | "Not in your files" with what they say |
+|---|---|---|---|
+| 0.12: reply exactly "Not in your files." | 84 | 11 | 0 of 14 |
+| "If they don't answer it directly, begin with "Not in your files." and say what they do say" | 72 | 2 | 54 of 54 |
+| **"If they don't answer it, reply "Not in your files." and then say in one sentence what they do say"** | **86** | **10** | **13 of 13** |
+| Reply exactly "Not in your files." (with the other changes) | 86 | 9 | 2 of 13 |
+
+- **"Directly"** made the model hedge: 24 right answers came marked "Not in your files."
+- With the chosen wording, the model adds doubts after 21 answers it got right ("Your space is 14. Not in your
+  files. ...they do not specify the number of the space"). The doubts were wrong far more often than the
+  answers, so the answer is kept, the doubts dropped, and the model stopped there.
+- Held back: 34/45 right and 10 wrong, against 31 and 8 for 0.12 (counted the same way). The two new wrong
+  ones had been "Not in your files." One of them was never shown to the model before (its best passage scored
+  below the old cut-off of −7).
 
 **Minimal dependencies.** Four Python libraries in all (PySide6-Essentials, numpy, onnxruntime, pypdfium2), plus
 llama.cpp itself, compiled from a pinned release and called through `ctypes`; everything else uses the

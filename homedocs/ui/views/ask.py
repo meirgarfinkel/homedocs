@@ -9,13 +9,14 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
-from ...core.answer import Answer
+from ...core.answer import NOT_FOUND, Answer
 from ...core.search import Found, Result
 from .. import theme
 from .common import ElidedLabel
 
 SNIPPET_CHARS = 240  # how much of a passage a result shows, about two lines (all of it in the Info panel)
 COLUMN = 720  # the page's text column, at most
+UNSURE = "Not answered directly by your files. What they say:"  # (over what the model made of passages that don't)
 
 
 def marked(
@@ -57,8 +58,14 @@ def answer_html(a: Answer) -> str:
     muted = theme.color("muted").name()
     accent = theme.color("accentText").name()
     link = f"color:{accent}; text-decoration:none; font-weight:600;"
-    out, at = [], 0
-    for s in a.sentences:
+    out, at, sentences = [], 0, a.sentences
+    if a.not_found and a.body and a.text.startswith(NOT_FOUND):  # the marker becomes a label over the rest
+        out.append(f'<span style="color:{muted}; font-style:italic;">{html.escape(UNSURE)}</span><br>')
+        at = len(NOT_FOUND)
+        sentences = [s for s in sentences if s.start >= at]
+        out.append(html.escape(a.text[at : sentences[0].start if sentences else len(a.text)].lstrip()))
+        at = sentences[0].start if sentences else len(a.text)
+    for s in sentences:
         out.append(html.escape(a.text[at : s.end]))
         if s.backed:
             out.append(f'<sup><a href="source:{a.sentences.index(s)}" style="{link}">{s.passage + 1}</a></sup>')
@@ -76,8 +83,14 @@ def _spaced(body: str) -> str:
 def answer_for_copying(a: Answer) -> str:
     """The answer as plain text with its sources listed under it."""
     used = sorted({s.passage for s in a.sentences if s.backed})
-    text, at = [], 0
-    for s in a.sentences:
+    text, at, sentences = [], 0, a.sentences
+    if a.not_found and a.body and a.text.startswith(NOT_FOUND):
+        text.append(UNSURE + "\n")
+        at = len(NOT_FOUND)
+        sentences = [s for s in sentences if s.start >= at]
+        while at < len(a.text) and a.text[at] == " ":
+            at += 1
+    for s in sentences:
         text.append(a.text[at : s.end] + (f" [{s.passage + 1}]" if s.backed else ""))
         at = s.end
     text.append(a.text[at:])
@@ -208,7 +221,7 @@ class AnswerCard(QFrame):
     def done(self, a: Answer, saved: bool = False):
         self.answer = a
         self.body.setText(answer_html(a))
-        self.copy_button.setVisible(not a.not_found)
+        self.copy_button.setVisible(bool(a.body))
         self.show()
 
     def failed(self, message: str):
