@@ -63,7 +63,8 @@ def _library():
             ("hd_free", [p], None),
             ("hd_n_ctx", [p], i),
             ("hd_tokenize", [p, ctypes.c_char_p, i, i32s, i, i], i),
-            ("hd_keep", [p, i], None),
+            ("hd_save", [p], i),
+            ("hd_keep", [p, i], i),
             ("hd_decode", [p, i32s, i], i),
             ("hd_next", [p], i32),
             ("hd_is_end", [p, i32], i),
@@ -130,12 +131,13 @@ class LLM:
         with self._lock:
             self.lib.hd_go(self._h)
             first = self.tokens(instructions)
-            if first == self._kept:
-                self.lib.hd_keep(self._h, len(first))  # reuse them: only the rest is read
+            if first == self._kept and self.lib.hd_keep(self._h, len(first)):
+                pass  # reused: only the rest is read
             else:
                 self.lib.hd_keep(self._h, 0)
                 self._kept = None
                 self._decode(first)
+                self.lib.hd_save(self._h)  # (for models whose memory can't be cut back to here)
                 self._kept = first
             toks = self.tokens(rest)
             if len(first) + len(toks) + max_new > self.n_ctx:

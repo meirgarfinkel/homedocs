@@ -63,8 +63,18 @@ def test_tidy():
     assert tidy("The car's license plate number is not provided in the passages.") == NOT_FOUND
     assert tidy("The passages don't mention a license plate.") == NOT_FOUND
     assert tidy("Repairs are not specified. Not in your files.") == NOT_FOUND
+    assert tidy("The provided passages do not state how much you paid for it.") == NOT_FOUND
+    assert tidy("Open enrollment is not mentioned in the provided files.") == NOT_FOUND
+    assert tidy("The documents don't contain your AGI.") == NOT_FOUND
     partial = "Rent is $1,850. The due date is not mentioned in the passages."
     assert tidy(partial) == partial
+    # answers that say what isn't covered or allowed are answers
+    for answer in (
+        "Homeowners' association fees are not deductible: they are imposed by the association, not a state.",
+        "No, the policy does not cover vehicles used for food delivery; that endorsement is not included.",
+        "The plan does not cover hearing aids.",
+    ):
+        assert tidy(answer) == answer
 
 
 def test_an_answer_streams_in_and_its_sentence_is_backed():

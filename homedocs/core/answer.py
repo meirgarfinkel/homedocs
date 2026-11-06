@@ -33,14 +33,14 @@ from .search import Found, Result, _results
 
 NOT_FOUND = "Not in your files."
 
+# Kept plain: each further rule was tried on its own with Qwen3.5-2B and kept only if the eval's tuning score
+# rose (only the arithmetic one did; "a rule or a table's row settles it" and "ignore passages about other
+# things", which helped Qwen3-1.7B, each cost it 2).
 INSTRUCTIONS = (
     "You answer questions using only the numbered passages below, which come from the user's own files. "
-    "Answer in one to three short sentences. Use only facts stated in the passages. "
-    "A passage that settles the question answers it, even in other words: for a yes-or-no question, a rule "
-    "that allows or forbids it is the answer; a form's line or a table's row (a label and its amount) answers "
-    "a question about what that label names, however the question words it. If the question needs arithmetic, "
-    "work it out from the passages' numbers and give the result. Some passages are about other things: ignore them. "
-    f'Only if no passage settles the question, reply exactly: "{NOT_FOUND}"'
+    "Answer in one to three short sentences, using only facts stated in the passages. "
+    "If the question needs arithmetic, work it out from the passages' numbers and give the result. "
+    f'If the passages don\'t answer the question, reply exactly: "{NOT_FOUND}"'
 )
 
 
@@ -74,11 +74,14 @@ class Answer:
         return is_not_found(self.text)
 
 
-# the model saying "Not in your files." in its own words: "...is not provided in the passages"
+# the model saying "Not in your files." in its own words, about the passages (or files, documents) themselves:
+# "...is not provided in the passages", "The provided passages do not state...". ("The policy does not cover
+# it" is an answer, not this.)
+_SOURCES = r"(?:provided\s+|given\s+)?(?:passages?|files?|documents?)"
 _NO_ANSWER = re.compile(
-    r"\b(?:not|n't)\s+(?:\w+\s+)?(?:provided|specified|mentioned|stated|given|included|found|listed)\s+in\s+"
-    r"the\s+(?:provided\s+|given\s+)?passages|\bthe\s+passages\s+(?:do\s+not|don't)\s+"
-    r"(?:say|mention|state|specify|contain|include)",
+    rf"\b(?:not|n't)\s+(?:\w+\s+)?(?:provided|specified|mentioned|stated|given|included|found|listed)\s+in\s+"
+    rf"(?:the|your)\s+{_SOURCES}|\b(?:the|your)\s+{_SOURCES}\s+(?:do\s+not|does\s+not|don't|doesn't)\s+"
+    r"(?:say|mention|state|specify|contain|include|provide|give|list)",
     re.I,
 )
 
