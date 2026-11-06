@@ -15,7 +15,7 @@ def household(questions):
 def test_the_questions_are_well_formed():
     qs = evals.load_questions() + evals.load_questions(held_back=True)
     assert len({q.id for q in qs}) == len(qs) > 100
-    kinds = {"fact", "table", "two-passages", "two-docs", "page-break", "reworded", "calc", "not-found"}
+    kinds = {"fact", "table", "two-passages", "two-docs", "page-break", "reworded", "calc", "not-found", "general"}
     assert {q.type for q in qs} == kinds
     for q in qs:
         assert bool(q.needs) == bool(q.facts) == q.answerable, q.id

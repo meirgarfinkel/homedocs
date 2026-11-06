@@ -1,0 +1,31 @@
+form: Form 1040 U.S. Individual Income Tax Return 2025
+layout: lines
+---
+For the year Jan. 1-Dec. 31, 2025
+Your first name and middle initial | DANA M
+Last name | REYES
+Home address (number and street) | 218 MAPLE COURT APT 3B
+City, town, or post office. State. ZIP code | SPRINGFIELD
+Filing Status. Check only one box. Single | X
+Income
+1a Total amount from Form(s) W-2, box 1 (see instructions) 1a | 68,400
+2b Taxable interest 2b | 212
+3b Ordinary dividends 3b | 0
+7 Capital gain or (loss). Attach Schedule D if required 7 | 0
+8 Additional income from Schedule 1, line 10 8 | 3,150
+9 Add lines 1z, 2b, 3b, 4b, 5b, 6b, 7, and 8. This is your total income 9 | 71,762
+10 Adjustments to income from Schedule 1, line 26 10 | 1,500
+11 Subtract line 10 from line 9. This is your adjusted gross income 11 | 70,262
+12 Standard deduction or itemized deductions (from Schedule A) 12 | 15,000
+15 Subtract line 14 from line 11. This is your taxable income 15 | 55,262
+Tax and Credits
+16 Tax (see instructions) 16 | 7,689
+24 Add lines 22 and 23. This is your total tax 24 | 7,689
+Payments
+25a Federal income tax withheld from Form(s) W-2 25a | 8,912
+33 Add lines 25d, 26, and 32. These are your total payments 33 | 8,912
+Refund
+34 If line 33 is more than line 24, subtract line 24 from line 33. This is the amount you overpaid 34 | 1,223
+35a Amount of line 34 you want refunded to you 35a | 1,223
+Amount You Owe
+37 Subtract line 33 from line 24. This is the amount you owe now 37 | 0

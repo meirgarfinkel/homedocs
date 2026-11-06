@@ -16,7 +16,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 
-from . import store
+from . import config, store
 from .config import KEYWORD_CANDIDATES, RERANK_CANDIDATES, RRF_K, SHOW_RESULTS, VECTOR_CANDIDATES
 from .db import open_db
 
@@ -96,9 +96,12 @@ class Searcher:
             ids = fuse(keyword, meaning, k=RRF_K)[:RERANK_CANDIDATES]
             results = _results(db, ids)
             if reranker is not None and by_meaning and results:
-                for r, s in zip(results, reranker.score(question, [r.text for r in results]), strict=True):
+                # (with where each is from, as it was embedded: "This is your total income ... 71,762" says
+                # nothing of a tax return, its file name does)
+                texts = [store.embed_text(r.name, r.heading, r.text) for r in results]
+                for r, s in zip(results, reranker.score(question, texts), strict=True):
                     r.score = s
-                results.sort(key=lambda r: -r.score)
+                results = _blend(results)
             results = _unique(results)[:SHOW_RESULTS]
             spans = store.highlights(db, question, [r.chunk_id for r in results])
             for r in results:
@@ -106,6 +109,18 @@ class Searcher:
         finally:
             db.close()
         return Found(results, time.perf_counter() - start, by_meaning, ids)
+
+
+def _blend(results: list[Result]) -> list[Result]:
+    """The results (in the search's order, scored by the re-ranker) in the re-ranker's order, with
+    RERANK_BLEND of the search's own order mixed in (reciprocal rank fusion, weighted)."""
+    by_score = sorted(range(len(results)), key=lambda i: -results[i].score)
+    points = [0.0] * len(results)
+    for place, i in enumerate(by_score):
+        points[i] += 1 / (RRF_K + place)
+    for i in range(len(results)):
+        points[i] += config.RERANK_BLEND / (RRF_K + i)
+    return [results[i] for i in sorted(range(len(results)), key=lambda i: -points[i])]
 
 
 def _results(db, ids: list[int]) -> list[Result]:

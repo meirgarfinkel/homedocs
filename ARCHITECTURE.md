@@ -237,7 +237,10 @@ back in.
 2. **Meaning:** the question's vector against the matrix (`store.VectorIndex`, reloaded after indexing changes
    the vectors); the best `VECTOR_CANDIDATES`.
 3. **Merge:** reciprocal rank fusion (`1 / (RRF_K + place)`, summed across both lists).
-4. **Re-rank:** the re-ranker scores the best `RERANK_CANDIDATES`; its order is final.
+4. **Re-rank:** the re-ranker scores the best `RERANK_CANDIDATES`, reading each with its file name and headings
+   (as it was embedded: "This is your total income ... 71,762" says nothing of a tax return, its file name
+   does). Its order is then blended with the merged order (reciprocal rank fusion again, the merged order
+   weighted `RERANK_BLEND`), so a passage both agree on wins.
 5. Identical passages (the same file in two places) are shown once; the best `SHOW_RESULTS` are kept, with where
    the question's words are in each (FTS5's `highlight()`, so "renewing" marks "renew").
 
@@ -293,14 +296,16 @@ eval set and its documents are never in the app.
   and sha256; the eval downloads them once into `build/evals/` and checks them, as the app does its models.
   Prior-year URLs are used where a publisher replaces its files each year.
 - Household documents written for it (a lease, car and home insurance, a health plan, appliance manuals, an
-  employee handbook), made into multi-page PDFs with tables and fine print by a script from text kept in
-  git (as `tests/samples.py` makes the test PDFs), so look-alike facts across files are there on purpose.
+  employee handbook, a tax return and W-2 drawn the way tax software prints them: the blank form, then the
+  values), made into multi-page PDFs with tables and fine print by a script from text kept in git (as
+  `tests/samples.py` makes the test PDFs), so look-alike facts across files are there on purpose.
 
 **The questions** (`tests/evals/questions.jsonl`, about 100): each has a type (one fact, table, two passages,
-two documents, across a page break, reworded, calculation, not in the files), the passages it needs (file and a
-short quote each, or a list of quotes when the same fact is in more than one place), the facts a right answer
-states (patterns), and whether it's for tuning or held back (`"held_back": true`, about 30%). Each run first
-checks that every quote is in its file, so a mistake in the questions isn't blamed on HomeDocs.
+two documents, across a page break, reworded, calculation, not in the files, general: asked the way people
+ask, "what did I make last year?"), the passages it needs (file and a short quote each, or a list of quotes
+when the same fact is in more than one place), the facts a right answer states (patterns), and whether it's for
+tuning or held back (`"held_back": true`, about 30%). Each run first checks that every quote is in its file, so
+a mistake in the questions isn't blamed on HomeDocs.
 
 **A run** indexes the documents with the real indexer into a data folder under `build/evals/`, kept for the
 next run while the documents, the splitting settings and the splitting code are unchanged; then for each
