@@ -88,19 +88,20 @@ RERANKER = Model(
 MODELS = (EMBEDDER, RERANKER)
 
 
-# Qwen3-1.7B, 4-bit (Q4_K_M), as converted by Unsloth (Qwen publishes only an 8-bit file of the small Qwen3s).
-# Chosen by the test in REQUIREMENTS.md: the only model tried that got all 20 questions right.
-_QWEN3 = f"{HF}/unsloth/Qwen3-1.7B-GGUF/resolve/d7f544eead698dbd1f15126ef60b45a1e1933222"
+# Qwen3.5-2B, 4-bit (Q4_K_M), as converted by Unsloth. Chosen over Qwen3-1.7B in a test with the same plain
+# instructions for every model (REQUIREMENTS.md): as many answers right, about half as many wrong, about as fast.
+# Its memory can't be cut back to the instructions, so llm.py restores a copy taken after reading them.
+_QWEN35 = f"{HF}/unsloth/Qwen3.5-2B-GGUF/resolve/f6d5376be1edb4d416d56da11e5397a961aca8ae"
 CHAT = Model(
-    "qwen3-1.7b-q4km",
-    "Qwen3-1.7B (Qwen), 4-bit",
+    "qwen3.5-2b-q4km",
+    "Qwen3.5-2B (Qwen), 4-bit",
     "Apache 2.0",
     (
         ModelFile(
             "model.gguf",
-            f"{_QWEN3}/Qwen3-1.7B-Q4_K_M.gguf",
-            "b139949c5bd74937ad8ed8c8cf3d9ffb1e99c866c823204dc42c0d91fa181897",
-            1107409472,
+            f"{_QWEN35}/Qwen3.5-2B-Q4_K_M.gguf",
+            "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223",
+            1280835840,
         ),
     ),
 )

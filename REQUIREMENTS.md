@@ -81,8 +81,9 @@ Agreed 2026-11-04. **v1** = first release, **v2** = next release, **Later** = no
 
 ## 5. Accuracy and evals
 
-HomeDocs has to be accurate for someone who never gives it feedback. So the chat model stays Qwen3-1.7B, and
-every other step is tuned for it, against a test set much harder than the 20 questions it was chosen with.
+HomeDocs has to be accurate for someone who never gives it feedback. So the chat model is chosen by the eval
+(Qwen3.5-2B since 2026-11-06: see "Models"), and every other step is tuned against a test set much harder
+than the 20 questions the first model was chosen with.
 
 | Requirement | Priority |
 |---|---|
@@ -165,7 +166,7 @@ Measured on a 2021 laptop (Intel i7-1165G7, 4 cores) where there's a measurement
 | Re-rank the candidates | < 300 ms | ~0.2 s: 20 candidates of 60 words, read whole, 8-bit model. The whole search takes 0.25 s typical, 0.6 s at most (95 eval questions) |
 | Question to passages on screen | < 1 s | ~0.4 s |
 | Embedding while indexing (background) | — | ~184 passages/s on half the cores, measured on a real 620,000-passage library (it was ~22): arctic-embed-xs (twice bge-small's speed), copies of a passage embedded once (35% of that library), and the passages to embed fetched 512 at a time. Without copies, ~145/s: under 2 min for 15,000 passages |
-| First word of the answer | ≤ 5 s | 4.9 s typical, 7.1 s at most (95 eval questions asked back to back, so the laptop is hot). The passages read are capped at 1,800 characters (~550 tokens), read at ~120 tokens/s; the instructions are read once and kept. With 300-word passages on real-length documents it was 10.5 s. The earlier target of 2 s isn't reachable with a 1.7B model on this CPU |
+| First word of the answer | ≤ 5 s | 4.9 s typical, 5.5 s at most (Qwen3.5-2B, the 45 held-back eval questions asked back to back, so the laptop is hot). The passages read are capped at 1,800 characters (~550 tokens), read at ~120 tokens/s; the instructions are read once and kept. With 300-word passages on real-length documents it was 10.5 s. The earlier target of 2 s isn't reachable with a 2B-class model on this CPU |
 | Writing the answer | ≥ 10 tokens/s | ~20–22 tokens/s; a whole answer in 3–7 s |
 
 Not tried yet: sending only the sentences around the matching words instead of whole passages (a shorter prompt
@@ -174,13 +175,13 @@ starts sooner, but may leave out what the answer needs; the evals would have to 
 ## Models (downloaded on first run)
 
 Pinned to exact files (by sha256, in `core/models.py`). Each licence allows use and redistribution. About
-1.2 GB in all.
+1.3 GB in all.
 
 | Role | Model | Size | Runtime |
 |---|---|---|---|
 | Embeddings | snowflake-arctic-embed-xs (Apache 2.0), Snowflake's 8-bit version: twice as fast as bge-small, as good on the evals | 23 MB | ONNX Runtime |
 | Reranker | ms-marco-MiniLM-L-6-v2 cross-encoder (Apache 2.0), 8-bit | 23 MB | ONNX Runtime |
-| Chat | Qwen3-1.7B (Apache 2.0), thinking off, Q4_K_M GGUF | 1.1 GB | llama.cpp, through our own small bindings |
+| Chat | Qwen3.5-2B (Apache 2.0), thinking off, Q4_K_M GGUF | 1.3 GB | llama.cpp, through our own small bindings |
 
 No PyTorch anywhere: ONNX and llama.cpp keep the bundle small and fast on CPU.
 
@@ -207,6 +208,29 @@ answered from the 3 best passages HomeDocs' own search found, on the i7-1165G7 w
 - **5 passages instead of 3** took 7.7 s to the first word with no better answers.
 - **The re-ranker's score** can rule out a question only when it's very low (below about −7): two answerable
   questions scored −5.8 and −3.9, and the unanswerable ones −5.3 to −10.6.
+
+### Re-tested on the eval (2026-11-06): Qwen3.5-2B
+
+The eval's 104 tuning questions, every model with the same plain instructions (answer only from the
+passages, in one to three sentences, else "Not in your files."): the instructions had been tuned for
+Qwen3-1.7B, which gave it a head start of 9 questions. Same laptop, 4 threads.
+
+| Model (4-bit) | Right | Wrong answers | "Not in your files" wrongly | First word |
+|---|---|---|---|---|
+| Qwen3-1.7B, plain instructions | 72/104 | 12 | 11 | ~5 s |
+| Qwen3-1.7B, its tuned instructions | 81/104 | 10 | 4 | ~5 s |
+| **Qwen3.5-2B, plain instructions** | **82/104** | **7** | 6 | ~5 s |
+| Gemma 4 E2B | 80/104 | 13 | 2 | ~7.5 s |
+| Qwen3-4B-Instruct-2507 (tuned instructions) | 83/104 | 2 | 10 | ~12 s |
+
+On the 45 held-back questions, Qwen3.5-2B (plain) got 32 right and 3 wrong, Qwen3-1.7B (tuned) 31 and 6.
+
+- **Larger models** are more careful (the 4B gave 2 wrong answers) but too slow on this CPU: 12–15 s to the
+  first word and ~9 tokens/s, in 4-bit K or Q4_0 alike. 8B and up need 5 GB or more and 25 s or more.
+- **Qwen3.5** keeps a running state, so the instructions are kept as a saved copy rather than by cutting the
+  memory (ARCHITECTURE.md, "Stream").
+- **Embedder:** nomic-embed-text-v1.5 (8-bit) found the needed passages for 88 of 98 answerable questions
+  against arctic-embed-xs's 89, and indexed ~9 times slower. Not taken.
 
 **Minimal dependencies.** Four Python libraries in all (PySide6-Essentials, numpy, onnxruntime, pypdfium2), plus
 llama.cpp itself, compiled from a pinned release and called through `ctypes`; everything else uses the

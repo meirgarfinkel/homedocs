@@ -266,6 +266,9 @@ with "Open file" and "Show in folder".
    badly. The prompt is written out in Qwen's chat format, with thinking turned off.
 3. **Stream:** `llm.py` reads the prompt and yields tokens one at a time. The instructions are the same for
    every question, so they're read once when the model loads and kept; each question only reads its passages.
+   Qwen3.5 keeps a running state that can't be cut back to the end of the instructions, so `native/hd_llama.c`
+   saves a copy of the state right after reading them (`hd_save`) and puts it back for the next question
+   (`hd_keep`); a model whose memory can be cut is cut, as before.
    `ui/workers.py` has a streaming job for this: it sends each batch of tokens to the UI thread through the
    same signal relay and checks a cancel flag between tokens (and between batches while reading the prompt),
    so a new question stops the old answer at once.
@@ -362,10 +365,10 @@ it's opened. Measured with 10,000 files: a reload takes 0.15 s on the UI thread,
 
 ## Memory
 
-Roughly: Python and Qt ~250 MB, chat model ~1.1 GB with its context, embedder and reranker ~200 MB, vectors
+Roughly: Python and Qt ~250 MB, chat model ~1.3 GB with its context, embedder and reranker ~200 MB, vectors
 and the database cache ~100 MB. Around 2 GB with everything loaded. The context window is kept small
-(`N_CTX` in `config.py`, 3,072 tokens) because the passages read and an answer fit in it. Measured with Qwen3-1.7B: 2.4 GB
-for a test script holding the chat model and Python (no window).
+(`N_CTX` in `config.py`, 3,072 tokens) because the passages read and an answer fit in it. Measured with Qwen3.5-2B: 2.0 GB
+for a test script holding the chat model and Python (no window); Qwen3-1.7B took 2.2 GB.
 
 ## The tests
 

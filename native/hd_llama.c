@@ -26,6 +26,8 @@ typedef struct {
     const struct llama_vocab *vocab;
     struct llama_sampler *sampler;
     volatile int stop;  // set from another thread: llama.cpp checks it between steps of a decode
+    uint8_t *saved;     // the state after the instructions (hd_save), for models whose memory can't be cut
+    size_t saved_size;
 } hd_model;
 
 static void quiet(enum ggml_log_level level, const char *text, void *data) {
@@ -85,6 +87,7 @@ HD_API hd_model *hd_load(const char *path, int n_ctx, int n_threads, int n_threa
 
 HD_API void hd_free(hd_model *h) {
     if (!h) return;
+    free(h->saved);
     llama_sampler_free(h->sampler);
     llama_free(h->ctx);
     llama_model_free(h->model);
@@ -99,10 +102,37 @@ HD_API int hd_tokenize(hd_model *h, const char *text, int len, int32_t *out, int
     return llama_tokenize(h->vocab, text, len, out, max, false, special != 0);
 }
 
-// Forget everything after the first keep tokens (keep = the instructions, read once and reused).
-HD_API void hd_keep(hd_model *h, int keep) {
-    llama_memory_seq_rm(llama_get_memory(h->ctx), 0, keep, -1);
+// Keep a copy of the state as it is now (just after reading the instructions). Models with a running state
+// (like Qwen3.5's) can't forget part of what they read, so hd_keep puts this copy back instead. 1 if saved.
+HD_API int hd_save(hd_model *h) {
+    free(h->saved);
+    h->saved = NULL;
+    h->saved_size = 0;
+    size_t size = llama_state_seq_get_size(h->ctx, 0);
+    uint8_t *buf = size ? malloc(size) : NULL;
+    if (!buf) return 0;
+    if (llama_state_seq_get_data(h->ctx, buf, size, 0) != size) {
+        free(buf);
+        return 0;
+    }
+    h->saved = buf;
+    h->saved_size = size;
+    return 1;
+}
+
+// Forget everything after the first keep tokens (keep = the instructions, read once and reused): cut the
+// memory there, or, where it can't be cut, go back to the copy hd_save kept. keep 0 forgets everything.
+// 1 if done; 0 if it couldn't be (nothing is kept then: read the instructions again).
+HD_API int hd_keep(hd_model *h, int keep) {
+    llama_memory_t mem = llama_get_memory(h->ctx);
     llama_sampler_reset(h->sampler);
+    if (keep == 0) {
+        llama_memory_clear(mem, true);
+        return 1;
+    }
+    if (llama_memory_seq_rm(mem, 0, keep, -1)) return 1;
+    llama_memory_clear(mem, true);
+    return h->saved && llama_state_seq_set_data(h->ctx, h->saved, h->saved_size, 0) == h->saved_size;
 }
 
 // Tokens read so far (the next token's position).
