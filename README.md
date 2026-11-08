@@ -28,6 +28,10 @@ laptop (Intel i7-1165G7), November 2026:
 answer says what they do say instead of only "Not in your files.", and an answer the model doubts at the end
 is kept: 3 more right, 2 more wrong (both had said "Not in your files." before).
 
+Since then, 36 more questions asked in everyday words ("My car battery died in a parking lot. Who can I call
+for help?") were added, 185 in all. On all 57 held-back questions 0.13 gets 43 right (75%) and gives 12 wrong
+answers; on the 16 asked in everyday words, 12 right.
+
 | Question type (0.13) | Right |
 |---|---|
 | A fact stated in one place | 18/20 |

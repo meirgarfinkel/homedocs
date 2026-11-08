@@ -64,6 +64,26 @@ Agreed 2026-11-04. **v1** = first release, **v2** = next release, **Later** = no
 | Limit a search to one folder | v1 |
 | Under 1 s from pressing Enter to passages on screen (see the speed budget below) | v1 |
 
+### Tried and not kept: questions written for each passage (2026-11-08)
+
+To find passages for questions asked in everyday words, the chat model wrote three such questions for every
+passage while indexing (doc2query); search then also matched the question against them, by meaning (a
+passage's score was the best of its own and its questions') and by keyword (fused with the passage's own
+results). No new model. Written for the household documents only (212 passages), the tuning set gained:
+103/128 right against 99, 23 of the 32 everyday questions against 16. Written for every passage (3,254) it
+didn't hold:
+
+| | Tuning, right (wrong) | Held back, right (wrong) | Everyday questions held back |
+|---|---|---|---|
+| Without | 99/128 (17) | 43/57 (12) | 12/16 |
+| With questions for every passage | 100/128 (20) | 36/57 (16) | 9/16 |
+
+Questions written for short or general passages are vague ("What state or territory do you live in?") and
+match many questions, so they push the needed passage out of the few the model reads; questions written for
+look-alike passages match each other's questions (the washer's E4 code came up for the dishwasher's). It also
+cost 3.4 s per passage on the 2021 laptop (about 3 hours for these 3,254), made the first word 0.5 s slower on the
+tuning set, and added search time.
+
 ## 4. Answers and citations
 
 | Requirement | Priority |
