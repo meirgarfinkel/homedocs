@@ -312,7 +312,7 @@ eval set and its documents are never in the app.
   values), made into multi-page PDFs with tables and fine print by a script from text kept in git (as
   `tests/samples.py` makes the test PDFs), so look-alike facts across files are there on purpose.
 
-**The questions** (`tests/evals/questions.jsonl`, about 100): each has a type (one fact, table, two passages,
+**The questions** (`tests/evals/questions.jsonl`, 185): each has a type (one fact, table, two passages,
 two documents, across a page break, reworded, calculation, not in the files, general: asked the way people
 ask, "what did I make last year?"), the passages it needs (file and a short quote each, or a list of quotes
 when the same fact is in more than one place), the facts a right answer states (patterns), and whether it's for
