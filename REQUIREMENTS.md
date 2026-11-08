@@ -84,6 +84,21 @@ look-alike passages match each other's questions (the washer's E4 code came up f
 cost 3.4 s per passage on the 2021 laptop (about 3 hours for these 3,254), made the first word 0.5 s slower on the
 tuning set, and added search time.
 
+### Tried and not kept: the question rewritten before search (2026-11-08)
+
+The chat model rewrote each question twice before search: in the words documents use, and as a sentence a
+document might contain that answers it (HyDE). Search then used the question and both rewrites (keyword and
+meaning for each, fused); the re-ranker read the question only (with the rewrites too it lost 4 more). No new
+model.
+
+| | Tuning, right (wrong) | Held back, right (wrong) | Everyday questions held back |
+|---|---|---|---|
+| Without | 99/128 (17) | 43/57 (12) | 12/16 |
+| With both rewrites | 104/128 (18) | 43/57 (11) | 10/16 |
+
+The tuning gain didn't carry to the held-back questions, and each rewrite takes 2.3 s (4.2 s at most) before
+search can start: the first word would come at about 9.5 s instead of 5.
+
 ## 4. Answers and citations
 
 | Requirement | Priority |
